@@ -1,0 +1,2 @@
+ADDR_SIZE = 32
+INT_SIZE = 32
