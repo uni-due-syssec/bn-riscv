@@ -3,60 +3,59 @@ from binaryninja import (Architecture, Endianness, RegisterInfo, SegmentFlag, In
                          LowLevelILOperation, LowLevelILLabel, LLIL_TEMP, SectionSemantics)
 
 from .const import ADDR_SIZE, INT_SIZE
-
+from .instruction import decode
 from capstone import *
 
 
-def branch_cond(il, cond, dest):
-    t = il.get_label_for_address(Architecture['riscv'], il[dest].const)
-
-    if t is None:
-        t = LowLevelILLabel()
-        indirect = True
-    else:
-        indirect = False
-
-    f_label_found = True
-    f = il.get_label_for_address(Architecture['riscv'], il.current_address+2)
-
-    if f is None:
-        f = LowLevelILLabel()
-        f_label_found = False
-
-    il.append(il.if_expr(cond, t, f))
-
-    if indirect:
-        il.mark_label(t)
-        il.append(il.jump(dest))
-
-    if not f_label_found:
-        il.mark_label(f)
+def jump(il, addr, imm):
+    dest = il.pop(ADDR_SIZE)
+    il.append(il.set_reg(ADDR_SIZE, LLIL_TEMP(0), dest))
+    il.append(il.jump(il.reg(ADDR_SIZE, LLIL_TEMP(addr))))
+    return []
 
 
-def jump(il, dest):
-    label = None
+def j(il, addr, imm):
+    dest = il.pop(ADDR_SIZE)
+    il.append(il.set_reg(ADDR_SIZE, LLIL_TEMP(addr), dest))
+    il.append(il.jump(il.reg(ADDR_SIZE, LLIL_TEMP(addr))))
+    return []
 
-    if il[dest].operation == LowLevelILOperation.LLIL_CONST:
-        label = il.get_label_for_address(
-            Architecture['riscv'],
-            il[dest].constant
+
+def addi(il, addr, imm):
+    dest = il.pop(ADDR_SIZE)
+    return il.push(ADDR_SIZE, il.store(ADDR_SIZE, dest, il.add(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))))
+
+
+def move(il, addr, imm):
+    # il.append(
+    #     il.store(
+    #         ADDR_SIZE, il.reg(ADDR_SIZE, imm[:2]),#il.pop(ADDR_SIZE)),
+    #         il.reg(ADDR_SIZE, imm[-2:])#il.pop(ADDR_SIZE))
+    #     )
+    # )
+    il.append(
+        il.set_reg(
+            ADDR_SIZE, imm[:2],
+            il.load(ADDR_SIZE, il.reg(ADDR_SIZE, imm[-2:]))
         )
-
-    if label is None:
-        return il.jump(dest)
-    else:
-        return il.goto(label)
+    )
+    return []
 
 
 def nop(il, addr, imm):
-    il.push(ADDR_SIZE, il.add(ADDR_SIZE, 0, 0))
     il.pop(ADDR_SIZE)
-    il.pop(ADDR_SIZE)
+    return il.push(ADDR_SIZE, il.nop())
 
 
-ins_as = {
+ins_il = {
+    'ld': lambda il, addr, imm: il.push(
+      ADDR_SIZE, il.store(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
+    ),
     'lui'
     'auipc'
+    'j': lambda il, addr, imm: il.push(
+        ADDR_SIZE, il.jump(il.pop(ADDR_SIZE))
+    ),
     'jal': jump,
     'jalr'
     'beq': lambda il, addr, imm: il.push(
@@ -71,6 +70,9 @@ ins_as = {
     'bge'
     'bltu'
     'bgeu'
+    'li': lambda il, addr, imm: il.push(
+      ADDR_SIZE, il.store(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
+    ),
     'lb': lambda il, addr, imm: il.push(
       0.5*ADDR_SIZE, il.sign_extend(ADDR_SIZE, il.pop(ADDR_SIZE))
     ),
@@ -89,7 +91,7 @@ ins_as = {
     'sw': lambda il, addr, imm: il.push(
       ADDR_SIZE, il.store(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
     ),
-    'addi'
+    'addi': addi,
     'slti'
     'sltiu'
     'xori'
@@ -100,7 +102,7 @@ ins_as = {
       ADDR_SIZE, il.arith_shift_right(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
     ),
     'srli': lambda il, addr, imm: il.push(
-      ADDR_SIZE, il.locigal_shift_right(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
+      ADDR_SIZE, il.logical_shift_right(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
     ),
     'add': lambda il, addr, imm: il.push(
       ADDR_SIZE, il.add(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
@@ -146,7 +148,9 @@ ins_as = {
     'remu': lambda il, addr, imm: il.push(
         ADDR_SIZE, il.mod_unsigned(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
     ),
-    'nop': nop
+    'mv': move,
+    'nop': nop,
+    'ret': lambda il, addr, imm: il.ret(il.pop(ADDR_SIZE)),
 }
 
 
@@ -200,54 +204,34 @@ class RISCV(Architecture):
 
     def get_instruction_info(self, data, addr):
 
-        result = InstructionInfo()
-        result.length = 2
+        instr = decode(data, addr)
 
-        # if addr >= int("0x3c0", 16):
-        md = Cs(CS_ARCH_RISCV, CS_MODE_RISCV64)
-        for i in md.disasm(data, addr):
-            result.length = i.size
-            if i.mnemonic == 'ret':
-                result.add_branch(BranchType.FunctionReturn)
-            if i.mnemonic in ['jal']:
-                result.add_branch(BranchType.TrueBranch, addr + int(i.op_str, 16))
-                # JAL stores the address of the instruction following the jump (pc+4) into register rd
-                result.add_branch(BranchType.FalseBranch, addr + 4)  #
-            # if i.name == "jal":
-            #    result.add_branch(BranchType.UnresolvedBranch)
-            # elif i.name == "jalr":
-            #    result.add_branch(BranchType.UnresolvedBranch)
-            # elif i.name == "ret":
-            #    result.add_branch(BranchType.FunctionReturn)
-            break
+        result = InstructionInfo()
+        result.length = instr.size
+
+        if instr.name == 'ret':
+            result.add_branch(BranchType.FunctionReturn)
+        if instr.name in ['jal', 'j']:
+            # JAL stores the address of the instruction following the jump (pc+4) into register rd
+            result.add_branch(BranchType.UnconditionalBranch, addr + int(instr.operand, 16))
 
         return result
 
     def get_instruction_text(self, data, addr):
 
-        size = 2
-        name = ""
-        operand = ""
-
-        # if addr >= int("0x3c0", 16):
-        md = Cs(CS_ARCH_RISCV, CS_MODE_RISCV64)
-        for i in md.disasm(data, addr):
-            size = i.size
-            name = i.mnemonic
-            operand = i.op_str
-            break
+        instr = decode(data, addr)
 
         tokens = [InstructionTextToken(
             InstructionTextTokenType.TextToken,
             "{:7} ".format(
-                name
+                instr.name
             )
         ), InstructionTextToken(
             InstructionTextTokenType.IntegerToken,
-            operand
+            instr.operand
         )]
 
-        return tokens, size
+        return tokens, instr.size
 
     # str data: max_instruction_length bytes from the binary at virtual address ``addr``
     # int addr: virtual address of bytes in ``data``
@@ -255,19 +239,24 @@ class RISCV(Architecture):
     # int return: the length of the current instruction
     def get_instruction_low_level_il(self, data, addr, il):
 
-        size = 2
-        name = ""
+        instr = decode(data, addr)
 
-        # if addr >= int("0x3c0", 16):
-        md = Cs(CS_ARCH_RISCV, CS_MODE_RISCV64)
-        for i in md.disasm(data, addr):
-            size = i.size
-            name = i.mnemonic
-            break
+        il_func = ins_il.get(instr.name, None)
 
-        ins_ll = ins_as.get(name)
+        if il_func is None:
 
-        return size
+            il.append(il.nop())
+
+            return instr.size
+
+        il_comp = il_func(il, addr, instr.operand)
+        if isinstance(il_comp, list):
+            for i in il_comp:
+                il.append(i)
+        else:
+            il.append(il_comp)
+
+        return instr.size
 
 
 class RISCVView(BinaryView):
@@ -297,8 +286,6 @@ class RISCVView(BinaryView):
         self.add_user_section("", 0, file_size, SectionSemantics.ReadOnlyCodeSectionSemantics)
 
         self.add_entry_point(0)
-
-        # print(self.get_function_at(int("0x3c0", 16)))
 
         return True
 
