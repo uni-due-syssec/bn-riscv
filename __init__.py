@@ -1,8 +1,7 @@
-from .riscv import RISCV, RISCVView
+from .riscv import RISCV
 from binaryninja import architecture, binaryview, enums
 
 RISCV.register()
-RISCVView.register()
 
 arch = architecture.Architecture['riscv']
 binaryview.BinaryViewType['ELF'].register_arch(
