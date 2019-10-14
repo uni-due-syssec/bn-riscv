@@ -1,6 +1,6 @@
-from binaryninja import (Architecture, Endianness, RegisterInfo, SegmentFlag, InstructionInfo,
-                         BinaryView, BranchType, InstructionTextToken, InstructionTextTokenType,
-                         LowLevelILOperation, LowLevelILLabel, LLIL_TEMP, SectionSemantics)
+from binaryninja import (Architecture, Endianness, RegisterInfo, InstructionInfo,
+                         BranchType, InstructionTextToken, InstructionTextTokenType,
+                         LowLevelILLabel)
 
 from .const import ADDR_SIZE, INT_SIZE
 from .instruction import decode
@@ -532,38 +532,3 @@ class RISCV(Architecture):
             return instr.size
 
         return None
-
-
-class RISCVView(BinaryView):
-    name = "riscvView"
-    long_name = "RiscV Bytecode"
-
-    def __init__(self, data):
-        BinaryView.__init__(self, parent_view=data, file_metadata=data.file)
-        self.raw = data
-
-    def init(self):
-        self.arch = Architecture['riscv']
-        self.platform = Architecture['riscv'].standalone_platform
-        self.max_function_size_for_analysis = 0
-
-        file_size = len(self.raw)
-
-        self.add_auto_segment(
-            0, file_size,
-            0, file_size,
-            (
-                SegmentFlag.SegmentReadable |
-                SegmentFlag.SegmentExecutable
-            )
-        )
-
-        self.add_user_section("", 0, file_size, SectionSemantics.ReadOnlyCodeSectionSemantics)
-
-        self.add_entry_point(0)
-
-        return True
-
-    @staticmethod
-    def is_valid_for_data(data):
-        return data.file.original_filename.endswith('.risc')
