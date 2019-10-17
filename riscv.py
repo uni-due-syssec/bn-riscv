@@ -2,6 +2,8 @@ from binaryninja import (Architecture, Endianness, RegisterInfo, InstructionInfo
                          BranchType, InstructionTextToken, InstructionTextTokenType,
                          LowLevelILLabel)
 
+from binaryninja.enums import (LowLevelILOperation)
+
 from .const import ADDR_SIZE, INT_SIZE
 from .instruction import decode
 
@@ -25,10 +27,70 @@ def j(il, op, imm):
     il.append(il.jump(dest))
 
 
+def jr(il, op, imm):
+    if len(op) < 2:
+        if len(op) < 1:
+            dest = 'ra'
+            base = 'zero'
+        else:
+            base = op[0]
+            dest = 'ra'
+    else:
+        dest = op[0]
+        base = op[1]
+
+    il.append(
+        il.jump(
+            il.add(ADDR_SIZE,
+                   il.reg(ADDR_SIZE, 'sp'),
+                   il.const(ADDR_SIZE, imm)
+                   )
+            )
+        )
+
+
+def jalr(il, op, imm):
+    if len(op) < 2:
+        if len(op) < 1:
+            dest = 'ra'
+            base = 'zero'
+        else:
+            base = op[0]
+            dest = 'ra'
+    else:
+        dest = op[0]
+        base = op[1]
+
+    il.append(il.set_reg(ADDR_SIZE, base,
+                         il.and_expr(ADDR_SIZE,
+                                     il.add(ADDR_SIZE,
+                                            il.reg(ADDR_SIZE, base),
+                                            il.const(12, imm)
+                                            ),
+                                     il.neg_expr(ADDR_SIZE, il.const(ADDR_SIZE, 2))
+                                     )
+                         )
+              )
+    il.append(il.set_reg(ADDR_SIZE, dest,
+                         il.add(ADDR_SIZE,
+                                il.reg(ADDR_SIZE, 'sp'),
+                                il.const(ADDR_SIZE, 4))
+                         )
+              )
+
+
 def beq(il, op, imm):
     cond = il.compare_equal(ADDR_SIZE,
                             il.reg(ADDR_SIZE, op[0]),
                             il.reg(ADDR_SIZE, op[1])
+                            )
+    condBranch(il, cond, imm)
+
+
+def beqz(il, op, imm):
+    cond = il.compare_equal(ADDR_SIZE,
+                            il.reg(ADDR_SIZE, op[0]),
+                            il.const(ADDR_SIZE, 0)
                             )
     condBranch(il, cond, imm)
 
@@ -38,6 +100,78 @@ def bne(il, op, imm):
                                 il.reg(ADDR_SIZE, op[0]),
                                 il.reg(ADDR_SIZE, op[1])
                                 )
+    condBranch(il, cond, imm)
+
+
+def bnez(il, op, imm):
+    cond = il.compare_not_equal(ADDR_SIZE,
+                                il.reg(ADDR_SIZE, op[0]),
+                                il.const(ADDR_SIZE, 0)
+                                )
+    condBranch(il, cond, imm)
+
+
+def blt(il, op, imm):
+    cond = il.compare_signed_less_than(ADDR_SIZE,
+                                       il.reg(ADDR_SIZE, op[0]),
+                                       il.reg(ADDR_SIZE, op[1])
+                                       )
+    condBranch(il, cond, imm)
+
+
+def bltu(il, op, imm):
+    cond = il.compare_unsigned_less_than(ADDR_SIZE,
+                                         il.reg(ADDR_SIZE, op[0]),
+                                         il.reg(ADDR_SIZE, op[1])
+                                         )
+    condBranch(il, cond, imm)
+
+
+def bltz(il, op, imm):
+    cond = il.compare_signed_less_than(ADDR_SIZE,
+                                       il.reg(ADDR_SIZE, op[0]),
+                                       il.const(ADDR_SIZE, 0)
+                                       )
+    condBranch(il, cond, imm)
+
+
+def bgtz(il, op, imm):
+    cond = il.compare_signed_less_than(ADDR_SIZE,
+                                       il.const(ADDR_SIZE, 0),
+                                       il.reg(ADDR_SIZE, op[0])
+                                       )
+    condBranch(il, cond, imm)
+
+
+def bge(il, op, imm):
+    cond = il.compare_signed_greater_equal(ADDR_SIZE,
+                                           il.reg(ADDR_SIZE, op[0]),
+                                           il.reg(ADDR_SIZE, op[1])
+                                           )
+    condBranch(il, cond, imm)
+
+
+def bgeu(il, op, imm):
+    cond = il.compare_unsigned_greater_equal(ADDR_SIZE,
+                                             il.reg(ADDR_SIZE, op[0]),
+                                             il.reg(ADDR_SIZE, op[0])
+                                             )
+    condBranch(il, cond, imm)
+
+
+def blez(il, op, imm):
+    cond = il.compare_signed_greater_equal(ADDR_SIZE,
+                                           il.const(ADDR_SIZE, 0),
+                                           il.reg(ADDR_SIZE, op[0])
+                                           )
+    condBranch(il, cond, imm)
+
+
+def bgez(il, op, imm):
+    cond = il.compare_unsigned_greater_equal(ADDR_SIZE,
+                                             il.reg(ADDR_SIZE, op[0]),
+                                             il.const(ADDR_SIZE, 0)
+                                             )
     condBranch(il, cond, imm)
 
 
@@ -53,7 +187,7 @@ def condBranch(il, cond, imm):
 
     f = il.get_label_for_address(
         Architecture['riscv'],
-        il.current_address + 2
+        il.current_address + 4
     )
     if f is None:
         f = LowLevelILLabel()
@@ -98,6 +232,79 @@ def sub(il, op, imm):
     )
 
 
+def neg(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.neg_expr(ADDR_SIZE,
+                               il.reg(ADDR_SIZE, op[1])
+                               )
+                   )
+    )
+
+
+def not_expr(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.not_expr(ADDR_SIZE,
+                               il.reg(ADDR_SIZE, op[1])))
+    )
+
+
+def mult(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.mult(ADDR_SIZE,
+                           il.reg(ADDR_SIZE, op[1]),
+                           il.reg(ADDR_SIZE, op[2])
+                           )
+                   )
+    )
+
+
+def div(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.div_signed(ADDR_SIZE,
+                                 il.reg(ADDR_SIZE, op[1]),
+                                 il.reg(ADDR_SIZE, op[2])
+                                 )
+                   )
+    )
+
+
+def divu(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.div_unsigned(ADDR_SIZE,
+                                   il.reg(ADDR_SIZE, op[1]),
+                                   il.reg(ADDR_SIZE, op[2])
+                                   )
+                   )
+    )
+
+
+def mod(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.mod_signed(ADDR_SIZE,
+                                 il.reg(ADDR_SIZE, op[1]),
+                                 il.reg(ADDR_SIZE, op[2])
+                                 )
+                   )
+    )
+
+
+def modu(il, op, imm):
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.mod_unsigned(ADDR_SIZE,
+                                   il.reg(ADDR_SIZE, op[1]),
+                                   il.reg(ADDR_SIZE, op[2])
+                                   )
+                   )
+    )
+
+
 def and_expr(il, op, imm):
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
@@ -132,7 +339,6 @@ def or_expr(il, op, imm):
 
 
 def ori(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.or_expr(ADDR_SIZE,
@@ -144,7 +350,6 @@ def ori(il, op, imm):
 
 
 def xor(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.xor_expr(ADDR_SIZE,
@@ -156,7 +361,6 @@ def xor(il, op, imm):
 
 
 def xori(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.xor_expr(ADDR_SIZE,
@@ -179,7 +383,6 @@ def sll(il, op, imm):
 
 
 def slli(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.shift_left(ADDR_SIZE,
@@ -202,7 +405,6 @@ def srl(il, op, imm):
 
 
 def srli(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.logical_shift_right(ADDR_SIZE,
@@ -214,7 +416,6 @@ def srli(il, op, imm):
 
 
 def sra(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.arith_shift_right(ADDR_SIZE,
@@ -226,7 +427,6 @@ def sra(il, op, imm):
 
 
 def srai(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.arith_shift_right(ADDR_SIZE,
@@ -238,28 +438,25 @@ def srai(il, op, imm):
 
 
 def lui(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
-                   il.zero_extend(ADDR_SIZE, il.const(ADDR_SIZE, imm))
+                   il.zero_extend(ADDR_SIZE, il.const(3, imm))
                    )
     )
 
 
 def auipc(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.add(ADDR_SIZE,
                           il.reg(ADDR_SIZE, 'pc'),
-                          il.zero_extend(ADDR_SIZE, il.const(ADDR_SIZE, imm))
+                          il.zero_extend(ADDR_SIZE, il.const(3, imm))
                           )
                    )
     )
 
 
 def storeWord(il, op, imm):
-    # op = operand.split()
     offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.const(ADDR_SIZE, imm))
     il.append(
         il.store(ADDR_SIZE, offset,
@@ -268,8 +465,61 @@ def storeWord(il, op, imm):
     )
 
 
+def storeHalf(il, op, imm):
+    offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.const(2, imm))
+    il.append(
+        il.store(ADDR_SIZE, offset,
+                 il.reg(ADDR_SIZE, op[0])
+                 )
+    )
+
+
+def storeByte(il, op, imm):
+    offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.const(1, imm))
+    il.append(
+        il.store(ADDR_SIZE, offset,
+                 il.reg(ADDR_SIZE, op[0])
+                 )
+    )
+
+
+def loadByte(il, op, imm):
+    offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.sign_extend(2, il.const(1, imm)))
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.load(1, offset)
+                   )
+    )
+
+
+def loadByteZero(il, op, imm):
+    offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.sign_extend(2, il.const(1, imm)))
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.zero_extend(ADDR_SIZE, il.load(1, offset))
+                   )
+    )
+
+
+def loadHalf(il, op, imm):
+    offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.sign_extend(2, il.const(2, imm)))
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.load(2, offset)
+                   )
+    )
+
+
+def loadHalfZero(il, op, imm):
+    offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.zero_extend(22, il.const(2, imm)))
+    il.append(
+        il.set_reg(ADDR_SIZE, op[0],
+                   il.zero_extend(ADDR_SIZE, il.load(16, offset))
+                   )
+    )
+
+
 def loadWord(il, op, imm):
-    # op = operand.split()
     offset = il.add(ADDR_SIZE, il.reg(ADDR_SIZE, op[1]), il.const(ADDR_SIZE, imm))
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
@@ -279,7 +529,6 @@ def loadWord(il, op, imm):
 
 
 def move(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.reg(ADDR_SIZE, op[1])
@@ -288,7 +537,6 @@ def move(il, op, imm):
 
 
 def slt(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.compare_signed_less_than(ADDR_SIZE,
@@ -300,7 +548,6 @@ def slt(il, op, imm):
 
 
 def sltu(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.compare_unsigned_less_than(ADDR_SIZE,
@@ -312,7 +559,6 @@ def sltu(il, op, imm):
 
 
 def slti(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.compare_signed_less_than(ADDR_SIZE,
@@ -324,7 +570,6 @@ def slti(il, op, imm):
 
 
 def sltiu(il, op, imm):
-    # op = operand.split()
     il.append(
         il.set_reg(ADDR_SIZE, op[0],
                    il.compare_unsigned_less_than(ADDR_SIZE,
@@ -342,34 +587,31 @@ ins_il = {
     'lui': lui,
     'auipc': auipc,
     'j': j,
+    'jr': jr,
     'jal': jal,
-    # 'jalr'
+    'jalr': jalr,
     'beq': beq,
+    'beqz': beqz,
     'bne': bne,
-    # 'blt': lambda il, addr, imm: il.push(
-    #   ADDR_SIZE, il.compare_signed_less_than(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))  # jump
-    # ),
-    # 'bge'
-    # 'bltu'
-    # 'bgeu'
+    'bnez': bnez,
+    'bge': bge,
+    'bgeu': bgeu,
+    'blez': blez,
+    'bgez': bgez,
+    'blt': blt,
+    'bltu': bltu,
+    'bltz': bltz,
+    'bgtz': bgtz,
     # 'li': lambda il, addr, imm: il.push(
     #   ADDR_SIZE, il.store(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
     # ),
-    # 'lb': lambda il, addr, imm: il.push(
-    #   0.5*ADDR_SIZE, il.sign_extend(ADDR_SIZE, il.pop(ADDR_SIZE))
-    # ),
-    # 'lh': lambda il, addr, imm: il.push(
-    #   ADDR_SIZE, il.sign_extend(ADDR_SIZE, il.pop(ADDR_SIZE))
-    # ),
+    'lb': loadByte,
+    'lh': loadHalf,
     'lw': loadWord,
-    # 'lbu': lambda il, addr, imm: il.push(
-    #   0.5*ADDR_SIZE, il.zero_extend(ADDR_SIZE, il.pop(ADDR_SIZE))
-    # ),
-    # 'lhu': lambda il, addr, imm: il.push(
-    #   ADDR_SIZE, il.zero_extend(ADDR_SIZE, il.pop(ADDR_SIZE))
-    # ),
-    # 'sb'
-    # 'sh'
+    'lbu': loadByteZero,
+    'lhu': loadHalfZero,
+    'sb': storeByte,
+    'sh': storeHalf,
     'sw': storeWord,
     'addi': addi,
     'slti': slti,
@@ -382,6 +624,8 @@ ins_il = {
     'srli': srli,
     'add': add,
     'sub': sub,
+    'neg': neg,
+    'not': not_expr,
     'sll': sll,
     # 'slt': lambda il, addr, imm: il.push(
     #     ADDR_SIZE, il.compare_signed_less_than(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
@@ -394,29 +638,17 @@ ins_il = {
     'and': and_expr,
     # 'ecall'
     # 'ebreak'
-    # 'mul': lambda il, addr, imm: il.push(
-    #     ADDR_SIZE, il.mult(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
+    'mul': mult,
     # 'mulh'
     # 'mulhasu'
     # 'mulhu'
-    # 'div': lambda il, addr, imm: il.push(
-    #     ADDR_SIZE, il.div_signed(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
-    # 'divu': lambda il, addr, imm: il.push(
-    #     ADDR_SIZE, il.div_unsigned(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
-    # 'rem': lambda il, addr, imm: il.push(
-    #     ADDR_SIZE, il.mod_signed(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
-    # 'remu': lambda il, addr, imm: il.push(
-    #     ADDR_SIZE, il.mod_unsigned(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
+    'div': div,
+    'divu': divu,
+    'rem': mod,
+    'remu': modu,
     'mv': move,
-    'nop': lambda il, op, imm: il.append(
-      il.nop()
-    ),
-    # 'ret':        JALR x0, x1, 0  # return from subroutine
+    'nop': lambda il, op, imm: il.append(il.nop()),
+    'ret': lambda il, op, imm: il.append(il.ret(il.const(ADDR_SIZE, imm)))  # return from subroutine
 }
 
 
@@ -426,8 +658,8 @@ class RISCV(Architecture):
     address_size = ADDR_SIZE
     default_int_size = INT_SIZE
 
-    instr_alignment = 1
-    max_instr_length = 33
+    # instr_alignment = 1
+    max_instr_length = 4
 
     endianness = Endianness.LittleEndian
 
@@ -473,20 +705,19 @@ class RISCV(Architecture):
 
         instr = decode(data, addr)
 
+        if instr is None:
+            return None
+
         result = InstructionInfo()
-        result.length = 0
+        result.length = instr.size
 
-        if instr is not None:
-            result.length = instr.size
-
-            if instr.name == 'ret':
-                result.add_branch(BranchType.FunctionReturn)
-            elif instr.name in ['jal', 'j']:
-                # JAL stores the address of the instruction following the jump (pc+4) into register rd
-                result.add_branch(BranchType.UnconditionalBranch, addr + instr.imm)
-            elif instr.name in ['beq', 'bne']:
-                result.add_branch(BranchType.TrueBranch, addr + instr.imm)
-                result.add_branch(BranchType.FalseBranch, addr + 4)
+        if instr.name == 'ret':
+            result.add_branch(BranchType.FunctionReturn)
+        elif instr.name in ['jal', 'j']:
+            result.add_branch(BranchType.UnconditionalBranch, addr + instr.imm)
+        elif instr.name in ['beq', 'bne', 'beqz', 'bnez', 'bge', 'bgeu', 'blt', 'bltu', 'blez', 'bgez', 'bltz', 'bgtz']:
+            result.add_branch(BranchType.TrueBranch, addr + instr.imm)
+            result.add_branch(BranchType.FalseBranch, addr + 4)
 
         return result
 
@@ -494,27 +725,31 @@ class RISCV(Architecture):
 
         instr = decode(data, addr)
 
+        if instr is None:
+            return None
+
         tokens = [InstructionTextToken(
             InstructionTextTokenType.TextToken,
             "{:6} ".format(
                 instr.name
             )
-        ), InstructionTextToken(
-            InstructionTextTokenType.TextToken,
+        ),
+            InstructionTextToken(
+            InstructionTextTokenType.RegisterToken,
             "{:9}".format(
                 instr.op
             )
-        ), InstructionTextToken(
-            InstructionTextTokenType.TextToken,
-            " " + str(instr.imm)
         )]
+        if instr.imm_val:
+            tokens.append(
+                InstructionTextToken(
+                    InstructionTextTokenType.PossibleAddressToken,
+                    " " + str(instr.imm)
+                )
+            )
 
         return tokens, instr.size
 
-    # str data: max_instruction_length bytes from the binary at virtual address ``addr``
-    # int addr: virtual address of bytes in ``data``
-    # LowLevelILFunction il: The function the current instruction belongs to
-    # int return: the length of the current instruction
     def get_instruction_low_level_il(self, data, addr, il):
 
         instr = decode(data, addr)
