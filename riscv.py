@@ -5,7 +5,7 @@ from binaryninja import (Architecture, Endianness, RegisterInfo, InstructionInfo
 from binaryninja.enums import (LowLevelILOperation)
 
 from .const import ADDR_SIZE, INT_SIZE
-from .instruction import decode
+from .instruction import decode, gen_token
 
 
 def jal(il, op, imm):
@@ -627,16 +627,14 @@ ins_il = {
     'neg': neg,
     'not': not_expr,
     'sll': sll,
-    # 'slt': lambda il, addr, imm: il.push(
-    #     ADDR_SIZE, il.compare_signed_less_than(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
+    'slt': slt,
     'sltu': sltu,
     'xor': xor,
     'srl': srl,
     'sra': sra,
     'or': or_expr,
     'and': and_expr,
-    # 'ecall'
+    'ecall': lambda il, op, imm: il.append(il.system_call()),
     # 'ebreak'
     'mul': mult,
     # 'mulh'
@@ -651,12 +649,17 @@ ins_il = {
     'ret': lambda il, op, imm: il.append(il.ret(il.const(ADDR_SIZE, imm)))  # return from subroutine
 }
 
+branch_ins = [
+    'beq', 'bne', 'beqz', 'bnez', 'bge', 'bgeu',
+    'blt', 'bltu', 'blez', 'bgez', 'bltz', 'bgtz'
+]
+
 
 class RISCV(Architecture):
     name = "riscv"
 
-    address_size = ADDR_SIZE
-    default_int_size = INT_SIZE
+    address_size = 4
+    default_int_size = 4
 
     # instr_alignment = 1
     max_instr_length = 4
@@ -713,9 +716,9 @@ class RISCV(Architecture):
 
         if instr.name == 'ret':
             result.add_branch(BranchType.FunctionReturn)
-        elif instr.name in ['jal', 'j']:
+        elif instr.name in ['jal', 'jalr', 'j', 'jr']:
             result.add_branch(BranchType.UnconditionalBranch, addr + instr.imm)
-        elif instr.name in ['beq', 'bne', 'beqz', 'bnez', 'bge', 'bgeu', 'blt', 'bltu', 'blez', 'bgez', 'bltz', 'bgtz']:
+        elif instr.name in branch_ins:
             result.add_branch(BranchType.TrueBranch, addr + instr.imm)
             result.add_branch(BranchType.FalseBranch, addr + 4)
 
@@ -728,25 +731,7 @@ class RISCV(Architecture):
         if instr is None:
             return None
 
-        tokens = [InstructionTextToken(
-            InstructionTextTokenType.TextToken,
-            "{:6} ".format(
-                instr.name
-            )
-        ),
-            InstructionTextToken(
-            InstructionTextTokenType.RegisterToken,
-            "{:9}".format(
-                instr.op
-            )
-        )]
-        if instr.imm_val:
-            tokens.append(
-                InstructionTextToken(
-                    InstructionTextTokenType.PossibleAddressToken,
-                    " " + str(instr.imm)
-                )
-            )
+        tokens = gen_token(instr)
 
         return tokens, instr.size
 
