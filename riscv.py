@@ -9,22 +9,35 @@ from .instruction import decode, gen_token
 
 
 def jal(il, op, imm):
-    il.append(il.set_reg(ADDR_SIZE, 'ra',
+    if len(op) < 1:
+        reg = 'ra'
+    else:
+        reg = op[0]
+
+    dest = il.add(ADDR_SIZE,
+                  il.reg(ADDR_SIZE, 'sp'),
+                  il.sign_extend(ADDR_SIZE,
+                                 il.and_expr(3,
+                                             il.const(3, imm),
+                                             il.const(2, 0xfffff)
+                                             )
+                                 )
+                  )
+
+    il.append(il.set_reg(ADDR_SIZE, reg,
                          il.add(ADDR_SIZE,
                                 il.reg(ADDR_SIZE, 'sp'),
                                 il.const(ADDR_SIZE, 4)
                                 )
                          )
               )
-    j(il, op, imm)
+
+    il.append(il.jump(dest))
 
 
 def j(il, op, imm):
-    dest = il.add(ADDR_SIZE,
-                  il.reg(ADDR_SIZE, 'sp'),
-                  il.const(ADDR_SIZE, imm)
-                  )
-    il.append(il.jump(dest))
+    op = ['zero']
+    jal(il, op, imm)
 
 
 def jr(il, op, imm):
@@ -61,22 +74,32 @@ def jalr(il, op, imm):
         dest = op[0]
         base = op[1]
 
-    il.append(il.set_reg(ADDR_SIZE, base,
-                         il.and_expr(ADDR_SIZE,
-                                     il.add(ADDR_SIZE,
-                                            il.reg(ADDR_SIZE, base),
-                                            il.const(12, imm)
-                                            ),
-                                     il.neg_expr(ADDR_SIZE, il.const(ADDR_SIZE, 2))
-                                     )
+    target = il.and_expr(ADDR_SIZE,
+                         il.add(ADDR_SIZE,
+                                il.reg(ADDR_SIZE, base),
+                                il.sign_extend(ADDR_SIZE,
+                                               il.and_expr(2,
+                                                           il.const(2, imm),
+                                                           il.const(2, 0xfff)
+                                                           )
+                                               )
+                                ),
+                         il.const(4, 0xfffffff0)
                          )
-              )
+
+    il.append(il.jump(target))
+
     il.append(il.set_reg(ADDR_SIZE, dest,
                          il.add(ADDR_SIZE,
                                 il.reg(ADDR_SIZE, 'sp'),
                                 il.const(ADDR_SIZE, 4))
                          )
               )
+
+
+def ret(il, op, imm):
+    op = ['zero', 'ra']
+    jalr(il, op, 0)
 
 
 def beq(il, op, imm):
@@ -215,7 +238,12 @@ def addi(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.add(ADDR_SIZE,
                           il.reg(ADDR_SIZE, op[1]),
-                          il.const(ADDR_SIZE, imm)
+                          il.sign_extend(ADDR_SIZE,
+                                         il.and_expr(2,
+                                                     il.const(2, imm),
+                                                     il.const(2, 0xfff)
+                                                     )
+                                         )
                           )
                    )
     )
@@ -321,7 +349,12 @@ def andi(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.and_expr(ADDR_SIZE,
                                il.reg(ADDR_SIZE, op[1]),
-                               il.const(ADDR_SIZE, imm)
+                               il.sign_extend(ADDR_SIZE,
+                                              il.and_expr(2,
+                                                          il.const(2, imm),
+                                                          il.const(2, 0xfff)
+                                                          )
+                                              )
                                )
                    )
     )
@@ -343,7 +376,12 @@ def ori(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.or_expr(ADDR_SIZE,
                               il.reg(ADDR_SIZE, op[1]),
-                              il.const(ADDR_SIZE, imm)
+                              il.sign_extend(ADDR_SIZE,
+                                             il.and_expr(2,
+                                                         il.const(2, imm),
+                                                         il.const(2, 0xfff)
+                                                         )
+                                             )
                               )
                    )
     )
@@ -365,7 +403,12 @@ def xori(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.xor_expr(ADDR_SIZE,
                                il.reg(ADDR_SIZE, op[1]),
-                               il.const(ADDR_SIZE, imm)
+                               il.sign_extend(ADDR_SIZE,
+                                              il.and_expr(2,
+                                                          il.const(2, imm),
+                                                          il.const(2, 0xfff)
+                                                          )
+                                              )
                                )
                    )
     )
@@ -387,7 +430,10 @@ def slli(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.shift_left(ADDR_SIZE,
                                  il.reg(ADDR_SIZE, op[1]),
-                                 il.const(ADDR_SIZE, imm)
+                                 il.and_expr(1,
+                                             il.const(1, imm),
+                                             il.const(1, 0xf)
+                                             )
                                  )
                    )
     )
@@ -409,7 +455,10 @@ def srli(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.logical_shift_right(ADDR_SIZE,
                                           il.reg(ADDR_SIZE, op[1]),
-                                          il.const(ADDR_SIZE, imm)
+                                          il.and_expr(1,
+                                                      il.const(1, imm),
+                                                      il.const(1, 0xf)
+                                                      )
                                           )
                    )
     )
@@ -450,7 +499,12 @@ def auipc(il, op, imm):
         il.set_reg(ADDR_SIZE, op[0],
                    il.add(ADDR_SIZE,
                           il.reg(ADDR_SIZE, 'pc'),
-                          il.zero_extend(ADDR_SIZE, il.const(3, imm))
+                          il.zero_extend(ADDR_SIZE,
+                                         il.and_expr(3,
+                                                     il.const(3, imm),
+                                                     il.const(3, 0xfffff)
+                                                     )
+                                         )
                           )
                    )
     )
@@ -581,9 +635,6 @@ def sltiu(il, op, imm):
 
 
 ins_il = {
-    # 'ld': lambda il, addr, imm: il.push(
-    #   ADDR_SIZE, il.store(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
     'lui': lui,
     'auipc': auipc,
     'j': j,
@@ -602,9 +653,6 @@ ins_il = {
     'bltu': bltu,
     'bltz': bltz,
     'bgtz': bgtz,
-    # 'li': lambda il, addr, imm: il.push(
-    #   ADDR_SIZE, il.store(ADDR_SIZE, il.pop(ADDR_SIZE), il.pop(ADDR_SIZE))
-    # ),
     'lb': loadByte,
     'lh': loadHalf,
     'lw': loadWord,
@@ -635,7 +683,7 @@ ins_il = {
     'or': or_expr,
     'and': and_expr,
     'ecall': lambda il, op, imm: il.append(il.system_call()),
-    # 'ebreak'
+    'ebreak': lambda il, op, imm: il.append(il.breakpoint()),
     'mul': mult,
     # 'mulh'
     # 'mulhasu'
@@ -646,7 +694,7 @@ ins_il = {
     'remu': modu,
     'mv': move,
     'nop': lambda il, op, imm: il.append(il.nop()),
-    'ret': lambda il, op, imm: il.append(il.ret(il.const(ADDR_SIZE, imm)))  # return from subroutine
+    'ret': lambda il, op, imm: il.append(il.ret(il.reg(ADDR_SIZE, 'ra')))  # ret
 }
 
 branch_ins = [
