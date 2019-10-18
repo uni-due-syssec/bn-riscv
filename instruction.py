@@ -4,6 +4,11 @@ from collections import namedtuple
 from binaryninja import InstructionTextToken, InstructionTextTokenType
 
 
+offset = [
+    'beq', 'beqz', 'bne', 'bnez', 'bge', 'blez', 'bgez', 'blt',
+    'bltz', 'bgtz', 'bltu', 'bgeu', 'jal', 'jalr', 'j', 'jr'
+]
+
 def decode(data, addr):
 
     instr = namedtuple('Instruction', 'size name op imm imm_val')
@@ -38,18 +43,24 @@ def decode(data, addr):
 def gen_token(instr):
 
     tokens = [InstructionTextToken(
-        InstructionTextTokenType.TextToken,
+        InstructionTextTokenType.InstructionToken,
         "{:6} ".format(
             instr.name
         )
     )]
     operands = instr.op.split()
     for i in operands:
-        tokens.append(InstructionTextToken(InstructionTextTokenType.RegisterToken, " "+i))
+        tokens.append(InstructionTextToken(InstructionTextTokenType.TextToken, " "))
+        tokens.append(InstructionTextToken(InstructionTextTokenType.RegisterToken, i))
 
     if instr.imm_val:
-        tokens.append(InstructionTextToken(InstructionTextTokenType.PossibleAddressToken, " " + str(instr.imm)))
-
+        tokens.append(InstructionTextToken(InstructionTextTokenType.TextToken, " "))
+        if instr.name in offset:
+            tokens.append(InstructionTextToken(
+                InstructionTextTokenType.PossibleAddressToken, hex(instr.imm), value=instr.imm))
+        else:
+            tokens.append(InstructionTextToken(
+                InstructionTextTokenType.IntegerToken, hex(instr.imm), value=instr.imm))
     return tokens
 
 
