@@ -1,6 +1,5 @@
 from binaryninja import (Architecture, Endianness, RegisterInfo, InstructionInfo,
-                         BranchType, InstructionTextToken, InstructionTextTokenType,
-                         LowLevelILLabel)
+                         BranchType, LowLevelILLabel)
 
 from binaryninja.enums import (LowLevelILOperation)
 
@@ -9,20 +8,11 @@ from .instruction import decode, gen_token
 
 
 def jal(il, op, imm):
+
     if len(op) < 1:
         reg = 'ra'
     else:
         reg = op[0]
-
-    dest = il.add(ADDR_SIZE,
-                  il.reg(ADDR_SIZE, 'sp'),
-                  il.sign_extend(ADDR_SIZE,
-                                 il.and_expr(3,
-                                             il.const(3, imm),
-                                             il.const(2, 0xfffff)
-                                             )
-                                 )
-                  )
 
     il.append(il.set_reg(ADDR_SIZE, reg,
                          il.add(ADDR_SIZE,
@@ -32,7 +22,18 @@ def jal(il, op, imm):
                          )
               )
 
+    dest = il.add(ADDR_SIZE,
+                  il.reg(ADDR_SIZE, 'sp'),
+                  il.sign_extend(ADDR_SIZE,
+                                 il.and_expr(3,
+                                             il.const(3, imm),
+                                             il.const(3, 0xfffff)
+                                             )
+                                 )
+                  )
+
     il.append(il.jump(dest))
+    jump(il, imm, dest)
 
 
 def j(il, op, imm):
@@ -41,35 +42,32 @@ def j(il, op, imm):
 
 
 def jr(il, op, imm):
-    if len(op) < 2:
-        if len(op) < 1:
-            dest = 'ra'
-            base = 'zero'
-        else:
-            base = op[0]
-            dest = 'ra'
-    else:
-        dest = op[0]
-        base = op[1]
 
-    il.append(
-        il.jump(
-            il.add(ADDR_SIZE,
-                   il.reg(ADDR_SIZE, 'sp'),
-                   il.const(ADDR_SIZE, imm)
-                   )
-            )
-        )
+    if len(op) < 1:
+        base = 'ra'
+    else:
+        base = op[0]
+
+    target = il.and_expr(ADDR_SIZE,
+                         il.add(ADDR_SIZE,
+                                il.reg(ADDR_SIZE, base),
+                                il.const(12, imm)
+                                ),
+                         il.neg_expr(ADDR_SIZE, il.const(ADDR_SIZE, 2))
+                         )
+
+    jump(il, imm, target)
 
 
 def jalr(il, op, imm):
+
     if len(op) < 2:
         if len(op) < 1:
-            dest = 'ra'
-            base = 'zero'
+            dest = 'zero'
+            base = 'ra'
         else:
-            base = op[0]
-            dest = 'ra'
+            dest = op[0]
+            base = 'ra'
     else:
         dest = op[0]
         base = op[1]
@@ -77,17 +75,15 @@ def jalr(il, op, imm):
     target = il.and_expr(ADDR_SIZE,
                          il.add(ADDR_SIZE,
                                 il.reg(ADDR_SIZE, base),
-                                il.sign_extend(ADDR_SIZE,
-                                               il.and_expr(2,
-                                                           il.const(2, imm),
-                                                           il.const(2, 0xfff)
-                                                           )
-                                               )
+                                il.and_expr(2,
+                                            il.const(2, imm),
+                                            il.const(2, 0xfff)
+                                            )
                                 ),
-                         il.const(4, 0xfffffff0)
+                         il.neg_expr(ADDR_SIZE, il.const(ADDR_SIZE, 2))
                          )
 
-    il.append(il.jump(target))
+    il.append(il.set_reg(ADDR_SIZE, base, target))
 
     il.append(il.set_reg(ADDR_SIZE, dest,
                          il.add(ADDR_SIZE,
@@ -95,11 +91,43 @@ def jalr(il, op, imm):
                                 il.const(ADDR_SIZE, 4))
                          )
               )
+    jump(il, imm, target)
+
+
+def jump(il, imm, dest):
+
+    label = None
+
+    #if il[dest].operation == LowLevelILOperation.LLIL_CONST:
+    label = il.get_label_for_address(
+        Architecture['riscv'],
+        il.current_address + imm
+    )
+
+    if label is None:
+        il.append(il.jump(dest))
+    else:
+        il.append(il.goto(label))
 
 
 def ret(il, op, imm):
-    op = ['zero', 'ra']
-    jalr(il, op, 0)
+
+    base = 'ra'
+    imm = 0
+
+    il.append(il.set_reg(ADDR_SIZE, base,
+                         il.and_expr(ADDR_SIZE,
+                                     il.add(ADDR_SIZE,
+                                            il.reg(ADDR_SIZE, base),
+                                            il.and_expr(2,
+                                                        il.const(2, imm),
+                                                        il.const(2, 0xfff)
+                                                        )
+                                            ),
+                                     il.neg_expr(ADDR_SIZE, il.const(ADDR_SIZE, 2))
+                                     )
+                         )
+              )
 
 
 def beq(il, op, imm):
@@ -199,12 +227,20 @@ def bgez(il, op, imm):
 
 
 def condBranch(il, cond, imm):
+    dest = il.add(ADDR_SIZE,
+                  il.reg(ADDR_SIZE, 'sp'),
+                  il.const(ADDR_SIZE, imm)
+                  )
+
     t = il.get_label_for_address(
         Architecture['riscv'],
         il.current_address + imm
     )
     if t is None:
         t = LowLevelILLabel()
+        indirect = True
+    else:
+        indirect = False
 
     f_label_found = True
 
@@ -217,6 +253,10 @@ def condBranch(il, cond, imm):
         f_label_found = False
 
     il.append(il.if_expr(cond, t, f))
+
+    if indirect:
+        il.mark_label(t)
+        il.append(il.jump(dest))
 
     if not f_label_found:
         il.mark_label(f)
@@ -634,7 +674,7 @@ def sltiu(il, op, imm):
     )
 
 
-ins_il = {
+instructions = {
     'lui': lui,
     'auipc': auipc,
     'j': j,
@@ -694,7 +734,7 @@ ins_il = {
     'remu': modu,
     'mv': move,
     'nop': lambda il, op, imm: il.append(il.nop()),
-    'ret': lambda il, op, imm: il.append(il.ret(il.reg(ADDR_SIZE, 'ra')))  # ret
+    'ret': ret
 }
 
 branch_ins = [
@@ -787,16 +827,14 @@ class RISCV(Architecture):
 
         instr = decode(data, addr)
 
-        if instr is not None:
-            il_func = ins_il.get(instr.name)
+        if instr is None:
+            return None
 
-            if il_func is None:
-                il.append(il.unimplemented())
+        func = instructions.get(instr.name)
 
-                return instr.size
+        if func is None:
+            il.append(il.unimplemented())
+        else:
+            func(il, instr.op.split(), instr.imm)
 
-            il_func(il, instr.op.split(), instr.imm)
-
-            return instr.size
-
-        return None
+        return instr.size
