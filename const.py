@@ -1,8 +1,5 @@
 from binaryninja import CallingConvention
 
-ADDR_SIZE = 4
-INT_SIZE = 4
-
 
 class DefaultCallingConvention(CallingConvention):
     name = "default"
