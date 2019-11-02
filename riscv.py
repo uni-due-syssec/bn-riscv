@@ -1,7 +1,7 @@
 from binaryninja import (Architecture, Endianness, RegisterInfo, InstructionInfo,
                          BranchType)
 
-from .instruction import decode, gen_token
+from .instruction import decode, gen_token, getTarget
 from .lifter import Lifter
 
 branch_ins = [
@@ -69,13 +69,16 @@ class RISCV(Architecture):
         result = InstructionInfo()
         result.length = instr.size
 
+        dest = addr + instr.imm
+
         if instr.name == 'ret':
             result.add_branch(BranchType.FunctionReturn)
-        elif instr.name in ['jal', 'jalr', 'j', 'jr']:
-            result.add_branch(BranchType.UnconditionalBranch, addr + instr.imm)
+        elif instr.name in ['jal', 'j']:
+            target = getTarget(addr, instr.name, instr.op, instr.imm)
+            result.add_branch(BranchType.UnconditionalBranch, target)
         elif instr.name in branch_ins:
-            result.add_branch(BranchType.TrueBranch, addr + instr.imm)
-            result.add_branch(BranchType.FalseBranch, addr + self.address_size)
+            result.add_branch(BranchType.TrueBranch, dest)
+            result.add_branch(BranchType.FalseBranch, addr + 4)
 
         return result
 
