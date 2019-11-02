@@ -39,23 +39,27 @@ class Lifter:
                               il.const(addr_size, 4)
                               )
                        )
-            )
+        )
 
-        il.append(
-            il.jump(
-                il.set_reg(addr_size, 'sp',
-                           il.add(addr_size,
-                                  il.const(addr_size, il.current_address),
-                                  il.sign_extend(addr_size,
-                                                 il.and_expr(3,
-                                                             il.const(3, imm),
-                                                             il.const(3, 0xfffff)
-                                                             )
-                                                 )
-                                  )
-                           )
-                )
-            )
+        label = il.get_label_for_address(
+            Architecture['riscv'],
+            (il.current_address + imm)
+        )
+
+        if label is not None:
+            print("not none")
+            il.append(il.goto(label))
+        else:
+            target = il.add(addr_size,
+                            il.const(addr_size, il.current_address),
+                            il.and_expr(2,
+                                        il.const(2, imm),
+                                        il.const(2, 0xfff)
+                                        )
+                            )
+
+            il.append(il.jump(target))
+
 
     @staticmethod
     def j(il, op, imm):
@@ -64,14 +68,14 @@ class Lifter:
 
     @staticmethod
     def jr(il, op, imm):
-        regs = [op[0], 'zero']
+        regs = ['zero', op[0]]
         Lifter.jalr(il, regs, imm)
 
     @staticmethod
     def jalr(il, op, imm):
 
         if len(op) < 2:
-            ret_adr = 'ra'
+            ret_adr = 'zero'
             base = op[0]
         else:
             ret_adr = op[0]
@@ -79,29 +83,26 @@ class Lifter:
 
         il.append(il.set_reg(addr_size, ret_adr,
                              il.add(addr_size,
-                                    il.reg(addr_size, 'sp'),
+                                    il.const(addr_size, il.current_address),
                                     il.const(addr_size, 4))
                              )
                   )
 
-        target = il.set_reg(addr_size, 'sp',
-                            il.and_expr(addr_size,
-                                        il.add(addr_size,
-                                               il.reg(addr_size, base),
-                                               il.sign_extend(addr_size,
-                                                              il.and_expr(3,
-                                                                          il.const(3, imm),
-                                                                          il.const(3, 0xfffff)
-                                                                          )
-                                                              )
-                                               ),
-                                        il.neg_expr(addr_size, il.const(addr_size, 2))
-                                        )
-                            )
+        target = il.and_expr(addr_size,
+                             il.add(addr_size,
+                                    il.reg(addr_size, base),
+                                    il.and_expr(2,
+                                                il.const(2, imm),
+                                                il.const(2, 0xfff)
+                                                )
+                                    ),
+                             il.neg_expr(addr_size, il.const(addr_size, 2))
+                             )
+
 
         label = il.get_label_for_address(
             Architecture['riscv'],
-            il.current_address
+            il.current_address + imm
         )
 
         if label is not None:
@@ -113,20 +114,29 @@ class Lifter:
     def ret(il, op, imm):
 
         base = 'ra'
+        ret_adr = 'zero'
         imm = 0
 
-        il.append(il.set_reg(addr_size, base,
-                             il.and_expr(addr_size,
-                                         il.add(addr_size,
-                                                il.reg(addr_size, base),
-                                                il.and_expr(2,
-                                                            il.const(2, imm),
-                                                            il.const(2, 0xfff)
-                                                            )
-                                                ),
-                                         il.neg_expr(addr_size, il.const(addr_size, 2))
-                                         )
-                             )
+        il.append(
+            il.set_reg(addr_size, ret_adr,
+                       il.add(addr_size,
+                              il.const(addr_size, il.current_address),
+                              il.const(addr_size, 4)
+                              )
+                       )
+        )
+
+        il.append(il.jump(il.and_expr(addr_size,
+                                      il.add(addr_size,
+                                             il.reg(addr_size, base),
+                                             il.and_expr(2,
+                                                         il.const(2, imm),
+                                                         il.const(2, 0xfff)
+                                                         )
+                                             ),
+                                      il.neg_expr(addr_size, il.const(addr_size, 2))
+                                      )
+                         )
                   )
 
     @staticmethod
@@ -228,8 +238,10 @@ class Lifter:
     @staticmethod
     def condBranch(il, cond, imm):
         dest = il.add(addr_size,
-                      il.reg(addr_size, 'sp'),
-                      il.const(addr_size, imm)
+                      il.const(addr_size, il.current_address),
+                      il.sign_extend(addr_size,
+                                     il.const(addr_size, imm)
+                                     )
                       )
 
         t = il.get_label_for_address(
@@ -318,7 +330,7 @@ class Lifter:
         )
 
     @staticmethod
-    def mult(il, op, imm):
+    def mul(il, op, imm):
         il.append(
             il.set_reg(addr_size, op[0],
                        il.mult(addr_size,
