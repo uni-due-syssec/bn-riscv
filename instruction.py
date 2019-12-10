@@ -9,13 +9,18 @@ offset = [
     'bltz', 'bgtz', 'bltu', 'bgeu', 'jal', 'jalr', 'j', 'jr'
 ]
 
-def decode(data, addr):
+
+def decode(data, addr, mode):
 
     instr = namedtuple('Instruction', 'size name op imm imm_val')
     op = ""
     imm = 0
+    if mode == 4:
+        mode = CS_MODE_RISCV32
+    elif mode == 8:
+        mode = CS_MODE_RISCV64
 
-    md = Cs(CS_ARCH_RISCV, CS_MODE_RISCV32)
+    md = Cs(CS_ARCH_RISCV, mode)
     md.detail = True
 
     for insn in md.disasm(data, addr):
@@ -62,6 +67,8 @@ def gen_token(instr):
             tokens.append(InstructionTextToken(
                 InstructionTextTokenType.IntegerToken, hex(instr.imm), value=instr.imm))
     return tokens
+
+
 
 
 
