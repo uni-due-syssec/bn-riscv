@@ -241,12 +241,7 @@ class Lifter:
             il.set_reg(addr_size, op[0],
                        il.add(addr_size,
                               il.reg(addr_size, op[1]),
-                              il.sign_extend(addr_size,
-                                             il.and_expr(2,
-                                                         il.const(2, imm),
-                                                         il.const(2, 0xfff)
-                                                         )
-                                             )
+                              il.const(addr_size, imm)
                               )
                        )
         )
@@ -492,7 +487,11 @@ class Lifter:
     def lui(il, op, imm):
         il.append(
             il.set_reg(addr_size, op[0],
-                       il.zero_extend(addr_size, il.const(3, imm))
+                       # il.shift_left(addr_size, 
+                       #               il.zero_extend(addr_size, il.const(3, imm)),
+                       #               # il.const(addr_size, imm)),
+                       #               il.const(addr_size, 12))
+                       il.const(addr_size, imm << 12)
                        )
         )
 
