@@ -1,13 +1,21 @@
 from binaryninja import (Architecture, LowLevelILLabel)
 
 addr_size = 4
-
+_arch_name = 'riscv'
 
 class Lifter:
 
-    def __init__(self, size):
+    def __init__(self, addr_size_, arch_name='riscv'):
+        self.arch_name = arch_name
+        global _arch_name
+        _arch_name = arch_name
+
         global addr_size
-        addr_size = size
+        addr_size = addr_size_
+        self.addr_size = addr_size_
+
+        # TODO: remove the @staticmethod and use self.addr_size instead
+        # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
 
     @classmethod
     def lift(cls, il, instr, mnemonic):
@@ -33,7 +41,7 @@ class Lifter:
             ret_adr = op[0]
 
         label = il.get_label_for_address(
-            Architecture['riscv'],
+            Architecture[_arch_name],
             il.current_address + imm
         )
 
