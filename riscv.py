@@ -4,11 +4,13 @@ from binaryninja import (Architecture, Endianness, RegisterInfo, InstructionInfo
 from .instruction import decode, gen_token
 from .lifter import Lifter
 
-branch_ins = [
+branch_ins = set([
     'beq', 'bne', 'beqz', 'bnez', 'bge', 'bgeu',
     'blt', 'bltu', 'blez', 'bgez', 'bltz', 'bgtz'
-]
+])
 
+direct_call_ins = set(['jal', 'j'])
+indirect_call_ins = set(['jalr', 'jr'])
 
 class RISCV(Architecture):
     name = "riscv"
@@ -76,9 +78,9 @@ class RISCV(Architecture):
         elif instr.name in branch_ins:
             result.add_branch(BranchType.TrueBranch, dest)
             result.add_branch(BranchType.FalseBranch, addr + 4)
-        elif instr.name in ['jal', 'j']:
+        elif instr.name in direct_call_ins:
             result.add_branch(BranchType.CallDestination, dest)
-        elif instr.name in ['jalr', 'jr']:
+        elif instr.name in indirect_call_ins:
             result.add_branch(BranchType.UnresolvedBranch)
 
         return result

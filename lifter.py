@@ -1,13 +1,21 @@
 from binaryninja import (Architecture, LowLevelILLabel)
 
 addr_size = 4
-
+_arch_name = 'riscv'
 
 class Lifter:
 
-    def __init__(self, size):
+    def __init__(self, addr_size_, arch_name='riscv'):
+        self.arch_name = arch_name
+        global _arch_name
+        _arch_name = arch_name
+
         global addr_size
-        addr_size = size
+        addr_size = addr_size_
+        self.addr_size = addr_size_
+
+        # TODO: remove the @staticmethod and use self.addr_size instead
+        # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
 
     @classmethod
     def lift(cls, il, instr, mnemonic):
@@ -33,7 +41,7 @@ class Lifter:
             ret_adr = op[0]
 
         label = il.get_label_for_address(
-            Architecture['riscv'],
+            Architecture[_arch_name],
             il.current_address + imm
         )
 
@@ -241,12 +249,7 @@ class Lifter:
             il.set_reg(addr_size, op[0],
                        il.add(addr_size,
                               il.reg(addr_size, op[1]),
-                              il.sign_extend(addr_size,
-                                             il.and_expr(2,
-                                                         il.const(2, imm),
-                                                         il.const(2, 0xfff)
-                                                         )
-                                             )
+                              il.const(addr_size, imm)
                               )
                        )
         )
@@ -492,7 +495,11 @@ class Lifter:
     def lui(il, op, imm):
         il.append(
             il.set_reg(addr_size, op[0],
-                       il.zero_extend(addr_size, il.const(3, imm))
+                       # il.shift_left(addr_size, 
+                       #               il.zero_extend(addr_size, il.const(3, imm)),
+                       #               # il.const(addr_size, imm)),
+                       #               il.const(addr_size, 12))
+                       il.const(addr_size, imm << 12)
                        )
         )
 
