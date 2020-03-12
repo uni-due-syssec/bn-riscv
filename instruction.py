@@ -35,6 +35,9 @@ def decode(data, addr, mode):
     elif mode == 8:
         mode = CS_MODE_RISCV64
 
+    # TODO: enable RISC-V compressed ISA 
+    # mode |= CS_MODE_RISCVC
+
     md = Cs(CS_ARCH_RISCV, mode)
     md.detail = True
 
@@ -82,10 +85,3 @@ def gen_token(instr):
             tokens.append(InstructionTextToken(
                 InstructionTextTokenType.IntegerToken, hex(instr.imm), value=instr.imm))
     return tokens
-
-
-
-
-
-
-
