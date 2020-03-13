@@ -11,13 +11,18 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""
+Specifies Calling conventions used on RISC-V architectures.
 
+A calling convention for C compilers is specified here:  
+https://riscv.org/wp-content/uploads/2015/01/riscv-calling.pdf
+"""
 
 from binaryninja import CallingConvention
 
 
 class DefaultCallingConvention(CallingConvention):
     name = "default"
-    int_arg_regs = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7']
+    int_arg_regs = ('a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7')
     int_return_reg = 'a0'
     high_int_return_reg = 'a1'

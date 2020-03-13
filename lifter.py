@@ -12,28 +12,20 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from binaryninja import Architecture, LowLevelILLabel
 
-from binaryninja import (Architecture, LowLevelILLabel)
+# TODO: make sure all expressions are lifted correctly for risc-v 64-bit
 
-addr_size = 4
-_arch_name = 'riscv'
 
 class Lifter:
-
-    def __init__(self, addr_size_, arch_name='riscv'):
+    def __init__(self, addr_size, arch_name='riscv'):
         self.arch_name = arch_name
-        global _arch_name
-        _arch_name = arch_name
+        self.addr_size = addr_size
 
-        global addr_size
-        addr_size = addr_size_
-        self.addr_size = addr_size_
-
-        # TODO: remove the @staticmethod and use self.addr_size instead
-        # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
-
-    @classmethod
-    def lift(cls, il, instr, mnemonic):
+    def lift(self, il, instr, mnemonic):
+        """
+        main entry point for lifting instruction to LLIL
+        """
 
         if mnemonic == 'or':
             mnemonic = 'or_expr'
@@ -42,186 +34,21 @@ class Lifter:
         elif mnemonic == 'not':
             mnemonic = 'not_expr'
 
-        if hasattr(cls, mnemonic):
-            getattr(cls, mnemonic)(il, instr.op.split(), instr.imm)
+        if hasattr(self, mnemonic):
+            getattr(self, mnemonic)(il, instr.op.split(), instr.imm)
         else:
             il.append(il.unimplemented())
 
-    @staticmethod
-    def jal(il, op, imm):
+    def condBranch(self, il, cond, imm):
+        """
+        generic helper/lifter for all conditional branches
+        """
+        dest = il.add(
+            self.addr_size, il.const(self.addr_size, il.current_address),
+            il.sign_extend(self.addr_size, il.const(self.addr_size, imm)))
 
-        if len(op) < 1:
-            ret_adr = 'ra'
-        else:
-            ret_adr = op[0]
-
-        label = il.get_label_for_address(
-            Architecture[_arch_name],
-            il.current_address + imm
-        )
-
-        if ret_adr != 'zero':
-            il.append(il.set_reg(addr_size, ret_adr, il.const(addr_size, il.current_address + 4)))
-
-        if label is not None:
-            il.append(il.goto(label))
-        else:
-            il.append(il.call(il.const(addr_size, il.current_address + imm)))
-
-
-    @staticmethod
-    def j(il, op, imm):
-        op = ['zero']
-        Lifter.jal(il, op, imm)
-
-    @staticmethod
-    def jr(il, op, imm):
-        regs = ['zero', op[0]]
-        Lifter.jalr(il, regs, imm)
-
-    @staticmethod
-    def jalr(il, op, imm):
-
-        if len(op) < 2:
-            ret_adr = 'ra'
-            base = op[0]
-        else:
-            ret_adr = op[0]
-            base = op[1]
-
-        target = il.and_expr(addr_size,
-                             il.add(addr_size,
-                                    il.reg(addr_size, base),
-                                    il.const(addr_size, imm)
-                                    ),
-                             il.neg_expr(addr_size, il.const(addr_size, 2))
-                             )
-
-        if ret_adr != 'zero':
-            il.append(il.set_reg(addr_size, ret_adr, il.const(addr_size, il.current_address + 4)))
-
-        il.append(il.call(target))
-
-
-    @staticmethod
-    def ret(il, op, imm):
-        il.append(il.ret(il.and_expr(addr_size,
-                                     il.reg(addr_size, 'ra'),
-                                     il.neg_expr(addr_size, il.const(addr_size, 2))
-                                     )
-                         )
-                  )
-        il.append(il.pop(addr_size))
-
-    @staticmethod
-    def beq(il, op, imm):
-        cond = il.compare_equal(addr_size,
-                                il.reg(addr_size, op[0]),
-                                il.reg(addr_size, op[1])
-                                )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def beqz(il, op, imm):
-        cond = il.compare_equal(addr_size,
-                                il.reg(addr_size, op[0]),
-                                il.const(addr_size, 0)
-                                )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bne(il, op, imm):
-        cond = il.compare_not_equal(addr_size,
-                                    il.reg(addr_size, op[0]),
-                                    il.reg(addr_size, op[1])
-                                    )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bnez(il, op, imm):
-        cond = il.compare_not_equal(addr_size,
-                                    il.reg(addr_size, op[0]),
-                                    il.const(addr_size, 0)
-                                    )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def blt(il, op, imm):
-        cond = il.compare_signed_less_than(addr_size,
-                                           il.reg(addr_size, op[0]),
-                                           il.reg(addr_size, op[1])
-                                           )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bltu(il, op, imm):
-        cond = il.compare_unsigned_less_than(addr_size,
-                                             il.reg(addr_size, op[0]),
-                                             il.reg(addr_size, op[1])
-                                             )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bltz(il, op, imm):
-        cond = il.compare_signed_less_than(addr_size,
-                                           il.reg(addr_size, op[0]),
-                                           il.const(addr_size, 0)
-                                           )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bgtz(il, op, imm):
-        cond = il.compare_signed_less_than(addr_size,
-                                           il.const(addr_size, 0),
-                                           il.reg(addr_size, op[0])
-                                           )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bge(il, op, imm):
-        cond = il.compare_signed_greater_equal(addr_size,
-                                               il.reg(addr_size, op[0]),
-                                               il.reg(addr_size, op[1])
-                                               )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bgeu(il, op, imm):
-        cond = il.compare_unsigned_greater_equal(addr_size,
-                                                 il.reg(addr_size, op[0]),
-                                                 il.reg(addr_size, op[0])
-                                                 )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def blez(il, op, imm):
-        cond = il.compare_signed_greater_equal(addr_size,
-                                               il.const(addr_size, 0),
-                                               il.reg(addr_size, op[0])
-                                               )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def bgez(il, op, imm):
-        cond = il.compare_unsigned_greater_equal(addr_size,
-                                                 il.reg(addr_size, op[0]),
-                                                 il.const(addr_size, 0)
-                                                 )
-        Lifter.condBranch(il, cond, imm)
-
-    @staticmethod
-    def condBranch(il, cond, imm):
-        dest = il.add(addr_size,
-                      il.const(addr_size, il.current_address),
-                      il.sign_extend(addr_size,
-                                     il.const(addr_size, imm)
-                                     )
-                      )
-
-        t = il.get_label_for_address(
-            Architecture['riscv'],
-            il.current_address + imm
-        )
+        t = il.get_label_for_address(Architecture[self.arch_name],
+                                     il.current_address + imm)
         if t is None:
             t = LowLevelILLabel()
             indirect = True
@@ -230,10 +57,8 @@ class Lifter:
 
         f_label_found = True
 
-        f = il.get_label_for_address(
-            Architecture['riscv'],
-            il.current_address + 4
-        )
+        f = il.get_label_for_address(Architecture[self.arch_name],
+                                     il.current_address + 4)
         if f is None:
             f = LowLevelILLabel()
             f_label_found = False
@@ -247,455 +72,421 @@ class Lifter:
         if not f_label_found:
             il.mark_label(f)
 
-    @staticmethod
-    def add(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.add(addr_size,
-                              il.reg(addr_size, op[1]),
-                              il.reg(addr_size, op[2])
-                              )
-                       )
-        )
+    def jal(self, il, op, imm):
 
-    @staticmethod
-    def addi(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.add(addr_size,
-                              il.reg(addr_size, op[1]),
-                              il.const(addr_size, imm)
-                              )
-                       )
-        )
+        if len(op) < 1:
+            ret_adr = 'ra'
+        else:
+            ret_adr = op[0]
 
-    @staticmethod
-    def sub(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.sub(addr_size,
-                              il.reg(addr_size, op[1]),
-                              il.reg(addr_size, op[2])
-                              )
-                       )
-        )
+        label = il.get_label_for_address(Architecture[self.arch_name],
+                                         il.current_address + imm)
 
-    @staticmethod
-    def neg(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.neg_expr(addr_size,
-                                   il.reg(addr_size, op[1])
-                                   )
-                       )
-        )
+        if ret_adr != 'zero':
+            il.append(
+                il.set_reg(self.addr_size, ret_adr,
+                           il.const(self.addr_size, il.current_address + 4)))
 
-    @staticmethod
-    def not_expr(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.not_expr(addr_size,
-                                   il.reg(addr_size, op[1])))
-        )
+        if label is not None:
+            il.append(il.goto(label))
+        else:
+            il.append(
+                il.call(il.const(self.addr_size, il.current_address + imm)))
 
-    @staticmethod
-    def mul(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.mult(addr_size,
-                               il.reg(addr_size, op[1]),
-                               il.reg(addr_size, op[2])
-                               )
-                       )
-        )
+    def j(self, il, op, imm):
+        op = ['zero']
+        self.jal(il, op, imm)
 
-    @staticmethod
-    def div(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.div_signed(addr_size,
-                                     il.reg(addr_size, op[1]),
-                                     il.reg(addr_size, op[2])
-                                     )
-                       )
-        )
+    def jr(self, il, op, imm):
+        regs = ['zero', op[0]]
+        self.jalr(il, regs, imm)
 
-    @staticmethod
-    def divu(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.div_unsigned(addr_size,
-                                       il.reg(addr_size, op[1]),
-                                       il.reg(addr_size, op[2])
-                                       )
-                       )
-        )
+    def jalr(self, il, op, imm):
 
-    @staticmethod
-    def mod(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.mod_signed(addr_size,
-                                     il.reg(addr_size, op[1]),
-                                     il.reg(addr_size, op[2])
-                                     )
-                       )
-        )
+        if len(op) < 2:
+            ret_adr = 'ra'
+            base = op[0]
+        else:
+            ret_adr = op[0]
+            base = op[1]
 
-    @staticmethod
-    def modu(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.mod_unsigned(addr_size,
-                                       il.reg(addr_size, op[1]),
-                                       il.reg(addr_size, op[2])
-                                       )
-                       )
-        )
+        target = il.and_expr(
+            self.addr_size,
+            il.add(self.addr_size, il.reg(self.addr_size, base),
+                   il.const(self.addr_size, imm)),
+            il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))
 
-    @staticmethod
-    def and_expr(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.and_expr(addr_size,
-                                   il.reg(addr_size, op[1]),
-                                   il.reg(addr_size, op[2])
-                                   )
-                       )
-        )
+        if ret_adr != 'zero':
+            il.append(
+                il.set_reg(self.addr_size, ret_adr,
+                           il.const(self.addr_size, il.current_address + 4)))
 
-    @staticmethod
-    def andi(il, op, imm):
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.and_expr(addr_size,
-                                   il.reg(addr_size, op[1]),
-                                   il.sign_extend(addr_size,
-                                                  il.and_expr(2,
-                                                              il.const(2, imm),
-                                                              il.const(2, 0xfff)
-                                                              )
-                                                  )
-                                   )
-                       )
-        )
+        il.append(il.call(target))
 
-    @staticmethod
-    def or_expr(il, op, imm):
+    def ret(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.or_expr(addr_size,
-                                  il.reg(addr_size, op[1]),
-                                  il.reg(addr_size, op[2])
-                                  )
-                       )
-        )
+            il.ret(
+                il.and_expr(
+                    self.addr_size, il.reg(self.addr_size, 'ra'),
+                    il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))))
+        il.append(il.pop(self.addr_size))
 
-    @staticmethod
-    def ori(il, op, imm):
+    def beq(self, il, op, imm):
+        cond = il.compare_equal(self.addr_size, il.reg(self.addr_size, op[0]),
+                                il.reg(self.addr_size, op[1]))
+        self.condBranch(il, cond, imm)
+
+    def beqz(self, il, op, imm):
+        cond = il.compare_equal(self.addr_size, il.reg(self.addr_size, op[0]),
+                                il.const(self.addr_size, 0))
+        self.condBranch(il, cond, imm)
+
+    def bne(self, il, op, imm):
+        cond = il.compare_not_equal(self.addr_size,
+                                    il.reg(self.addr_size, op[0]),
+                                    il.reg(self.addr_size, op[1]))
+        self.condBranch(il, cond, imm)
+
+    def bnez(self, il, op, imm):
+        cond = il.compare_not_equal(self.addr_size,
+                                    il.reg(self.addr_size, op[0]),
+                                    il.const(self.addr_size, 0))
+        self.condBranch(il, cond, imm)
+
+    def blt(self, il, op, imm):
+        cond = il.compare_signed_less_than(self.addr_size,
+                                           il.reg(self.addr_size, op[0]),
+                                           il.reg(self.addr_size, op[1]))
+        self.condBranch(il, cond, imm)
+
+    def bltu(self, il, op, imm):
+        cond = il.compare_unsigned_less_than(self.addr_size,
+                                             il.reg(self.addr_size, op[0]),
+                                             il.reg(self.addr_size, op[1]))
+        self.condBranch(il, cond, imm)
+
+    def bltz(self, il, op, imm):
+        cond = il.compare_signed_less_than(self.addr_size,
+                                           il.reg(self.addr_size, op[0]),
+                                           il.const(self.addr_size, 0))
+        self.condBranch(il, cond, imm)
+
+    def bgtz(self, il, op, imm):
+        cond = il.compare_signed_less_than(self.addr_size,
+                                           il.const(self.addr_size, 0),
+                                           il.reg(self.addr_size, op[0]))
+        self.condBranch(il, cond, imm)
+
+    def bge(self, il, op, imm):
+        cond = il.compare_signed_greater_equal(self.addr_size,
+                                               il.reg(self.addr_size, op[0]),
+                                               il.reg(self.addr_size, op[1]))
+        self.condBranch(il, cond, imm)
+
+    def bgeu(self, il, op, imm):
+        cond = il.compare_unsigned_greater_equal(self.addr_size,
+                                                 il.reg(self.addr_size, op[0]),
+                                                 il.reg(self.addr_size, op[0]))
+        self.condBranch(il, cond, imm)
+
+    def blez(self, il, op, imm):
+        cond = il.compare_signed_greater_equal(self.addr_size,
+                                               il.const(self.addr_size, 0),
+                                               il.reg(self.addr_size, op[0]))
+        self.condBranch(il, cond, imm)
+
+    def bgez(self, il, op, imm):
+        cond = il.compare_unsigned_greater_equal(self.addr_size,
+                                                 il.reg(self.addr_size, op[0]),
+                                                 il.const(self.addr_size, 0))
+        self.condBranch(il, cond, imm)
+
+    def add(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.or_expr(addr_size,
-                                  il.reg(addr_size, op[1]),
-                                  il.sign_extend(addr_size,
-                                                 il.and_expr(2,
-                                                             il.const(2, imm),
-                                                             il.const(2, 0xfff)
-                                                             )
-                                                 )
-                                  )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                       il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def xor(il, op, imm):
+    def addi(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.xor_expr(addr_size,
-                                   il.reg(addr_size, op[1]),
-                                   il.reg(addr_size, op[2])
-                                   )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                       il.const(self.addr_size, imm))))
 
-    @staticmethod
-    def xori(il, op, imm):
+    def sub(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.xor_expr(addr_size,
-                                   il.reg(addr_size, op[1]),
-                                   il.sign_extend(addr_size,
-                                                  il.and_expr(2,
-                                                              il.const(2, imm),
-                                                              il.const(2, 0xfff)
-                                                              )
-                                                  )
-                                   )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sub(self.addr_size, il.reg(self.addr_size, op[1]),
+                       il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def sll(il, op, imm):
+    def neg(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.shift_left(addr_size,
-                                     il.reg(addr_size, op[1]),
-                                     il.reg(addr_size, op[2])
-                                     )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.neg_expr(self.addr_size, il.reg(self.addr_size, op[1]))))
 
-    @staticmethod
-    def slli(il, op, imm):
+    def not_expr(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.shift_left(addr_size,
-                                     il.reg(addr_size, op[1]),
-                                     il.and_expr(1,
-                                                 il.const(1, imm),
-                                                 il.const(1, 0xf)
-                                                 )
-                                     )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.not_expr(self.addr_size, il.reg(self.addr_size, op[1]))))
 
-    @staticmethod
-    def srl(il, op, imm):
+    def mul(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.logical_shift_right(addr_size,
-                                              il.reg(addr_size, op[1]),
-                                              il.reg(addr_size, op[2])
-                                              )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.mult(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def srli(il, op, imm):
+    def div(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.logical_shift_right(addr_size,
-                                              il.reg(addr_size, op[1]),
-                                              il.and_expr(1,
-                                                          il.const(1, imm),
-                                                          il.const(1, 0xf)
-                                                          )
-                                              )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.div_signed(self.addr_size, il.reg(self.addr_size, op[1]),
+                              il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def sra(il, op, imm):
+    def divu(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.arith_shift_right(addr_size,
-                                            il.reg(addr_size, op[1]),
-                                            il.reg(addr_size, op[2])
-                                            )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.div_unsigned(self.addr_size, il.reg(self.addr_size, op[1]),
+                                il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def srai(il, op, imm):
+    def mod(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.arith_shift_right(addr_size,
-                                            il.reg(addr_size, op[1]),
-                                            il.const(addr_size, imm)
-                                            )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.mod_signed(self.addr_size, il.reg(self.addr_size, op[1]),
+                              il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def lui(il, op, imm):
+    def modu(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       # il.shift_left(addr_size, 
-                       #               il.zero_extend(addr_size, il.const(3, imm)),
-                       #               # il.const(addr_size, imm)),
-                       #               il.const(addr_size, 12))
-                       il.const(addr_size, imm << 12)
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.mod_unsigned(self.addr_size, il.reg(self.addr_size, op[1]),
+                                il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def auipc(il, op, imm):
+    def and_expr(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.add(addr_size,
-                              il.reg(addr_size, 'pc'),
-                              il.zero_extend(addr_size,
-                                             il.and_expr(3,
-                                                         il.const(3, imm),
-                                                         il.const(3, 0xfffff)
-                                                         )
-                                             )
-                              )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.and_expr(self.addr_size, il.reg(self.addr_size, op[1]),
+                            il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def sw(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
-                        il.const(addr_size, imm)
-                        )
+    def andi(self, il, op, imm):
         il.append(
-            il.store(addr_size, offset,
-                     il.reg(addr_size, op[0])
-                     )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.and_expr(
+                    self.addr_size, il.reg(self.addr_size, op[1]),
+                    il.sign_extend(
+                        self.addr_size,
+                        il.and_expr(2, il.const(2, imm), il.const(2,
+                                                                  0xfff))))))
 
-    @staticmethod
-    def sh(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
-                        il.const(2, imm)
-                        )
+    def or_expr(self, il, op, imm):
         il.append(
-            il.store(addr_size, offset,
-                     il.reg(addr_size, op[0])
-                     )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.or_expr(self.addr_size, il.reg(self.addr_size, op[1]),
+                           il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def sb(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
-                        il.const(1, imm)
-                        )
+    def ori(self, il, op, imm):
         il.append(
-            il.store(addr_size, offset,
-                     il.reg(addr_size, op[0])
-                     )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.or_expr(
+                    self.addr_size, il.reg(self.addr_size, op[1]),
+                    il.sign_extend(
+                        self.addr_size,
+                        il.and_expr(2, il.const(2, imm), il.const(2,
+                                                                  0xfff))))))
 
-    @staticmethod
-    def lb(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
-                        il.sign_extend(2, il.const(1, imm))
-                        )
+    def xor(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.load(1, offset)
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.xor_expr(self.addr_size, il.reg(self.addr_size, op[1]),
+                            il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def lbu(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
+    def xori(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.xor_expr(
+                    self.addr_size, il.reg(self.addr_size, op[1]),
+                    il.sign_extend(
+                        self.addr_size,
+                        il.and_expr(2, il.const(2, imm), il.const(2,
+                                                                  0xfff))))))
+
+    def sll(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.shift_left(self.addr_size, il.reg(self.addr_size, op[1]),
+                              il.reg(self.addr_size, op[2]))))
+
+    def slli(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.shift_left(
+                    self.addr_size, il.reg(self.addr_size, op[1]),
+                    il.and_expr(1, il.const(1, imm), il.const(1, 0xf)))))
+
+    def srl(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.logical_shift_right(self.addr_size,
+                                       il.reg(self.addr_size, op[1]),
+                                       il.reg(self.addr_size, op[2]))))
+
+    def srli(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.logical_shift_right(
+                    self.addr_size, il.reg(self.addr_size, op[1]),
+                    il.and_expr(1, il.const(1, imm), il.const(1, 0xf)))))
+
+    def sra(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.arith_shift_right(self.addr_size,
+                                     il.reg(self.addr_size, op[1]),
+                                     il.reg(self.addr_size, op[2]))))
+
+    def srai(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.arith_shift_right(self.addr_size,
+                                     il.reg(self.addr_size, op[1]),
+                                     il.const(self.addr_size, imm))))
+
+    def lui(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size,
+                op[0],
+                # il.shift_left(self.addr_size,
+                #               il.zero_extend(self.addr_size, il.const(3, imm)),
+                #               # il.const(self.addr_size, imm)),
+                #               il.const(self.addr_size, 12))
+                il.const(self.addr_size, imm << 12)))
+
+    def auipc(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.add(
+                    self.addr_size, il.reg(self.addr_size, 'pc'),
+                    il.zero_extend(
+                        self.addr_size,
+                        il.and_expr(3, il.const(3, imm), il.const(3,
+                                                                  0xfffff))))))
+
+    def sw(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.const(self.addr_size, imm))
+        il.append(
+            il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+
+    def sh(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.const(2, imm))
+        il.append(
+            il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+
+    def sb(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.const(1, imm))
+        il.append(
+            il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+
+    def lb(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.sign_extend(2, il.const(1, imm)))
+        il.append(il.set_reg(self.addr_size, op[0], il.load(1, offset)))
+
+    def lbu(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.sign_extend(2, il.const(1, imm)))
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.zero_extend(addr_size, il.load(1, offset))
-                       )
-        )
+            il.set_reg(self.addr_size, op[0],
+                       il.zero_extend(self.addr_size, il.load(1, offset))))
 
-    @staticmethod
-    def lh(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
+    def lh(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.sign_extend(2, il.const(2, imm)))
-        il.append(
-            il.set_reg(addr_size, op[0],
-                       il.load(2, offset)
-                       )
-        )
+        il.append(il.set_reg(self.addr_size, op[0], il.load(2, offset)))
 
-    @staticmethod
-    def lhu(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
-                        il.zero_extend(22, il.const(2, imm))
-                        )
+    def lhu(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.zero_extend(22, il.const(2, imm)))
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.zero_extend(addr_size, il.load(16, offset))
-                       )
-        )
+            il.set_reg(self.addr_size, op[0],
+                       il.zero_extend(self.addr_size, il.load(16, offset))))
 
-    @staticmethod
-    def lw(il, op, imm):
-        offset = il.add(addr_size,
-                        il.reg(addr_size, op[1]),
-                        il.const(addr_size, imm)
-                        )
+    def lw(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.const(self.addr_size, imm))
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.load(addr_size, offset)
-                       )
-        )
+            il.set_reg(self.addr_size, op[0], il.load(self.addr_size, offset)))
 
-    @staticmethod
-    def mv(il, op, imm):
+    def mv(self, il, op, imm):
 
         if op[1] == 'zero':
             il.append(
-                il.set_reg(addr_size, op[0],
-                           il.const(addr_size, 0)
-                           )
-            )
+                il.set_reg(self.addr_size, op[0], il.const(self.addr_size, 0)))
         else:
             il.append(
-                il.set_reg(addr_size, op[0],
-                           il.reg(addr_size, op[1])
-                           )
-            )
+                il.set_reg(self.addr_size, op[0],
+                           il.reg(self.addr_size, op[1])))
 
-    @staticmethod
-    def slt(il, op, imm):
+    def slt(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.compare_signed_less_than(addr_size,
-                                                   il.reg(addr_size, op[1]),
-                                                   il.reg(addr_size, op[2])
-                                                   )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.compare_signed_less_than(self.addr_size,
+                                            il.reg(self.addr_size, op[1]),
+                                            il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def sltu(il, op, imm):
+    def sltu(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.compare_unsigned_less_than(addr_size,
-                                                     il.reg(addr_size, op[1]),
-                                                     il.reg(addr_size, op[2])
-                                                     )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.compare_unsigned_less_than(self.addr_size,
+                                              il.reg(self.addr_size, op[1]),
+                                              il.reg(self.addr_size, op[2]))))
 
-    @staticmethod
-    def slti(il, op, imm):
+    def slti(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.compare_signed_less_than(addr_size,
-                                                   il.reg(addr_size, op[1]),
-                                                   il.const(addr_size, imm)
-                                                   )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.compare_signed_less_than(self.addr_size,
+                                            il.reg(self.addr_size, op[1]),
+                                            il.const(self.addr_size, imm))))
 
-    @staticmethod
-    def sltiu(il, op, imm):
+    def sltiu(self, il, op, imm):
         il.append(
-            il.set_reg(addr_size, op[0],
-                       il.compare_unsigned_less_than(addr_size,
-                                                     il.reg(addr_size, op[1]),
-                                                     il.const(addr_size, imm)
-                                                     )
-                       )
-        )
+            il.set_reg(
+                self.addr_size, op[0],
+                il.compare_unsigned_less_than(self.addr_size,
+                                              il.reg(self.addr_size, op[1]),
+                                              il.const(self.addr_size, imm))))
 
-    @staticmethod
-    def ecall(il, op, imm):
+    def ecall(self, il, op, imm):
         il.append(il.system_call())
 
-    @staticmethod
-    def ebreak(il, op, imm):
+    def ebreak(self, il, op, imm):
         il.append(il.breakpoint())
 
-    @staticmethod
-    def nop(il, op, imm):
+    def nop(self, il, op, imm):
         il.append(il.nop())
