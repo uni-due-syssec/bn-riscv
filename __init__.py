@@ -15,12 +15,12 @@
 
 from binaryninja import architecture, binaryview, enums
 from .riscv import RISCV, RISCV64
-from .calling_convention import DefaultCallingConvention
+from .calling_convention import RVGCallingConvention
 
 RISCV.register()
 
 _rvarch = architecture.Architecture['riscv']
-_rvarch.register_calling_convention(DefaultCallingConvention(_rvarch, 'default'))
+_rvarch.register_calling_convention(RVGCallingConvention(_rvarch, 'default'))
 _rvarch.standalone_platform.default_calling_convention = _rvarch.calling_conventions['default']
 binaryview.BinaryViewType['ELF'].register_arch(
     243, enums.Endianness.LittleEndian, _rvarch
@@ -28,7 +28,7 @@ binaryview.BinaryViewType['ELF'].register_arch(
 
 RISCV64.register()
 _rvarch64 = architecture.Architecture['riscv64']
-_rvarch64.register_calling_convention(DefaultCallingConvention(_rvarch64, 'default'))
+_rvarch64.register_calling_convention(RVGCallingConvention(_rvarch64, 'default'))
 _rvarch64.standalone_platform.default_calling_convention = _rvarch64.calling_conventions['default']
 
 # NOTE: currently there is only one ELF e_machine type for risc-v (243 or

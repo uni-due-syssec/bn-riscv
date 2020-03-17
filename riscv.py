@@ -32,6 +32,11 @@ class RISCV(Architecture):
 
     address_size = 4
     default_int_size = 4
+    # TODO: This actually depends on whether the F, D, Q extension is
+    # implemented, but we'll just assume it is the Q extension (128 bit)
+    default_float_size = 16
+
+    # TODO: not sure this is true for all extensions?
     max_instr_length = 4
 
     endianness = Endianness.LittleEndian
@@ -46,7 +51,7 @@ class RISCV(Architecture):
         "zero": RegisterInfo("zero", address_size),
         # x1 - return address (caller saved)
         "ra": RegisterInfo("ra", address_size),
-        # x2 - stack pointer (caller saved)
+        # x2 - stack pointer (callee saved)
         "sp": RegisterInfo("sp", address_size),
         # x3 - global pointer
         "gp": RegisterInfo("gp", address_size),
@@ -70,7 +75,7 @@ class RISCV(Architecture):
         "a5": RegisterInfo("a5", address_size),
         "a6": RegisterInfo("a6", address_size),
         "a7": RegisterInfo("a7", address_size),
-        # x18-27 - saved registers (caller saved
+        # x18-27 - saved registers (caller saved)
         "s2": RegisterInfo("s2", address_size),
         "s3": RegisterInfo("s3", address_size),
         "s4": RegisterInfo("s4", address_size),
@@ -86,8 +91,47 @@ class RISCV(Architecture):
         "t4": RegisterInfo("t4", address_size),
         "t5": RegisterInfo("t5", address_size),
         "t6": RegisterInfo("t6", address_size),
-        # pc
+        # pc (caller saved)
         "pc": RegisterInfo("pc", address_size),
+
+        # f0-7 - FP temporaries (caller saved)
+        "ft0": RegisterInfo("ft0", default_float_size),
+        "ft1": RegisterInfo("ft1", default_float_size),
+        "ft2": RegisterInfo("ft2", default_float_size),
+        "ft3": RegisterInfo("ft3", default_float_size),
+        "ft4": RegisterInfo("ft4", default_float_size),
+        "ft5": RegisterInfo("ft5", default_float_size),
+        "ft6": RegisterInfo("ft6", default_float_size),
+        "ft7": RegisterInfo("ft7", default_float_size),
+        # f8-9 - FP saved registers (callee saved)
+        "fs0": RegisterInfo("fs0", default_float_size),
+        "fs1": RegisterInfo("fs1", default_float_size),
+        # f10-11 - FP arguments/return values (caller saved)
+        "fa0": RegisterInfo("fa0", default_float_size),
+        "fa1": RegisterInfo("fa1", default_float_size),
+        # f12-17 - FP arguments (caller saved)
+        "fa2": RegisterInfo("fa2", default_float_size),
+        "fa3": RegisterInfo("fa3", default_float_size),
+        "fa4": RegisterInfo("fa4", default_float_size),
+        "fa5": RegisterInfo("fa5", default_float_size),
+        "fa6": RegisterInfo("fa6", default_float_size),
+        "fa7": RegisterInfo("fa7", default_float_size),
+        # f18–27 - FP saved registers (callee saved)
+        "fs2": RegisterInfo("fs2", default_float_size),
+        "fs3": RegisterInfo("fs3", default_float_size),
+        "fs4": RegisterInfo("fs4", default_float_size),
+        "fs5": RegisterInfo("fs5", default_float_size),
+        "fs6": RegisterInfo("fs6", default_float_size),
+        "fs7": RegisterInfo("fs7", default_float_size),
+        "fs8": RegisterInfo("fs8", default_float_size),
+        "fs9": RegisterInfo("fs9", default_float_size),
+        "fs10": RegisterInfo("fs10", default_float_size),
+        "fs11": RegisterInfo("fs11", default_float_size),
+        # f28-31 - FP temporaries (caller saved)
+        "ft8": RegisterInfo("ft8", default_float_size),
+        "ft9": RegisterInfo("ft9", default_float_size),
+        "ft10": RegisterInfo("ft10", default_float_size),
+        "ft11": RegisterInfo("ft11", default_float_size),
     }
 
     stack_pointer = "sp"
@@ -142,10 +186,9 @@ class RISCV64(RISCV):
     name = "riscv64"
 
     address_size = 8
-    default_int_size = 8
-    max_instr_length = 4
+    default_int_size = 4
+    # TODO: not sure this is true for all extensions?
 
-    endianness = Endianness.LittleEndian
     disassembler = RVDisassembler(address_size)
     lifter = Lifter(address_size)
 
