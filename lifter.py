@@ -387,10 +387,7 @@ class Lifter:
                 self.addr_size, op[0],
                 il.add(
                     self.addr_size, il.reg(self.addr_size, 'pc'),
-                    il.zero_extend(
-                        self.addr_size,
-                        il.and_expr(3, il.const(3, imm), il.const(3,
-                                                                  0xfffff))))))
+                    il.const(self.addr_size, imm << 12))))
 
     def sw(self, il, op, imm):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
