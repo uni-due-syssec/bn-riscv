@@ -468,7 +468,8 @@ class Lifter:
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.const(self.addr_size, il.current_address + (imm << 12))))
+                il.const(self.addr_size, (il.current_address + (imm << 12)) %
+                         (2**(8 * self.addr_size)))))
 
     def sd(self, il, op, imm):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
