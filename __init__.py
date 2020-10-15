@@ -13,21 +13,23 @@
 #   limitations under the License.
 
 
-from binaryninja import architecture, binaryview, enums
+import binaryninja as _bn
 from .riscv import RISCV, RISCV64
 from .calling_convention import RVGCallingConvention
 
 RISCV.register()
 
-_rvarch = architecture.Architecture['riscv']
+_rvarch = _bn.architecture.Architecture['riscv']
 _rvarch.register_calling_convention(RVGCallingConvention(_rvarch, 'default'))
 _rvarch.standalone_platform.default_calling_convention = _rvarch.calling_conventions['default']
-binaryview.BinaryViewType['ELF'].register_arch(
-    243, enums.Endianness.LittleEndian, _rvarch
-)
+
+# _bn.binaryview.BinaryViewType['ELF'].register_arch(
+#     243, enums.Endianness.LittleEndian, _rvarch
+# )
 
 RISCV64.register()
-_rvarch64 = architecture.Architecture['riscv64']
+
+_rvarch64 = _bn.architecture.Architecture['riscv64']
 _rvarch64.register_calling_convention(RVGCallingConvention(_rvarch64, 'default'))
 _rvarch64.standalone_platform.default_calling_convention = _rvarch64.calling_conventions['default']
 
@@ -36,6 +38,6 @@ _rvarch64.standalone_platform.default_calling_convention = _rvarch64.calling_con
 # they have different e_machine types for 32/64 bit. As such the binary ninja
 # API does not let us distinguish between risc-v 32/64 bit. 
 
-# binaryview.BinaryViewType['ELF'].register_arch(
-#     243, enums.Endianness.LittleEndian, _rvarch64
-# )
+_bn.binaryview.BinaryViewType['ELF'].register_arch(
+    243, _bn.enums.Endianness.LittleEndian, _rvarch64
+)
