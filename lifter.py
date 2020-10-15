@@ -77,6 +77,7 @@ class Lifter:
 
         t = il.get_label_for_address(Architecture[self.arch_name],
                                      il.current_address + imm)
+
         if t is None:
             t = LowLevelILLabel()
             indirect = True
@@ -87,6 +88,7 @@ class Lifter:
 
         f = il.get_label_for_address(Architecture[self.arch_name],
                                      il.current_address + 4)
+
         if f is None:
             f = LowLevelILLabel()
             f_label_found = False
@@ -138,26 +140,30 @@ class Lifter:
             ret_adr = op[0]
             base = op[1]
 
-        temp_expr = il.set_reg(
-            self.addr_size, LLIL_TEMP(0), il.reg(self.addr_size, base)
-        )
+        # copy base register to temp
+        il.append(
+            il.set_reg(self.addr_size, LLIL_TEMP(0),
+                       il.reg(self.addr_size, base)))
 
-        inc_expr = il.set_reg(
-            self.addr_size, ret_adr, il.const(self.addr_size, il.current_address + 4)
-        )
-
-        target = il.and_expr(
-            self.addr_size,
-            il.add(self.addr_size, il.reg(self.addr_size, LLIL_TEMP(0)),
-                   il.const(self.addr_size, imm)),
-            il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))
-
-        il.append(temp_expr)
+        # compute return address and store to ret_addr register
+        inc_expr = il.set_reg(self.addr_size, ret_adr,
+                              il.const(self.addr_size, il.current_address + 4))
 
         if ret_adr != 'zero':
             il.append(inc_expr)
 
-        il.append(il.call(target))
+        # compute the jump target
+        il.append(
+            il.set_reg(
+                self.addr_size, LLIL_TEMP(0),
+                il.and_expr(
+                    self.addr_size,
+                    il.add(self.addr_size, il.reg(self.addr_size,
+                                                  LLIL_TEMP(0)),
+                           il.const(self.addr_size, imm)),
+                    il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))))
+
+        il.append(il.call(il.reg(self.addr_size, LLIL_TEMP(0))))
 
     def ret(self, il, op, imm):
         il.append(
@@ -245,6 +251,7 @@ class Lifter:
         else:
             computation = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                                  il.reg(self.addr_size, op[2]))
+
         if op[0] == 'zero':
             il.append(il.nop())
         else:
@@ -256,6 +263,7 @@ class Lifter:
                                  il.const(self.addr_size, imm))
         else:
             computation = il.const(self.addr_size, imm)
+
         if op[0] == 'zero':
             il.append(il.nop())
         else:
