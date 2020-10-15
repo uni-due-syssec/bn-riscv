@@ -147,6 +147,7 @@ class RISCV(Architecture):
         result.length = instr.size
 
         dest = None
+
         if instr.imm is not None:
             dest = addr + instr.imm
 
@@ -189,9 +190,11 @@ class RISCV64(RISCV):
 
     address_size = 8
     default_int_size = 4
-    # TODO: not sure this is true for all extensions?
 
     disassembler = RVDisassembler(address_size)
     lifter = Lifter(address_size)
 
-    regs = {k: RegisterInfo(k, 8) for k, v in RISCV.regs.items()}
+    regs = {
+        k: (RegisterInfo(k, 8) if v.size == 4 else RegisterInfo(k, v.size))
+        for k, v in RISCV.regs.items()
+    }
