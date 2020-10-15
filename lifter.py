@@ -124,12 +124,17 @@ class Lifter:
                 il.call(il.const(self.addr_size, il.current_address + imm)))
 
     def j(self, il, op, imm):
-        op = ['zero']
-        self.jal(il, op, imm)
+        label = il.get_label_for_address(Architecture[self.arch_name],
+                                         il.current_address + imm)
+
+        if label is not None:
+            il.append(il.goto(label))
+        else:
+            il.append(
+                il.jump(il.const(self.addr_size, il.current_address + imm)))
 
     def jr(self, il, op, imm):
-        regs = ['zero', op[0]]
-        self.jalr(il, regs, imm)
+        il.append(il.jump(il.reg(self.addr_size, op[0])))
 
     def jalr(self, il, op, imm):
 
