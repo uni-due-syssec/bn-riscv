@@ -483,64 +483,71 @@ class Lifter:
                 il.const(self.addr_size, (il.current_address + (imm << 12)) %
                          (2**(8 * self.addr_size)))))
 
-    def sd(self, il, op, imm):
+    def _store(self, il, op, imm, size):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.const(self.addr_size, imm))
-        il.append(il.store(8, offset, il.reg(self.addr_size, op[0])))
+
+        if op[0] == 'zero':
+            val = il.const(self.addr_size, 0)
+        else:
+            val = il.reg(self.addr_size, op[0])
+
+        il.append(il.store(size, offset, val))
+
+    def sd(self, il, op, imm):
+        self._store(il, op, imm, 8)
 
     def sw(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.const(self.addr_size, imm))
-        il.append(il.store(4, offset, il.reg(self.addr_size, op[0])))
+        self._store(il, op, imm, 4)
 
     def sh(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.const(2, imm))
-        il.append(
-            il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+        self._store(il, op, imm, 2)
 
     def sb(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.const(1, imm))
-        il.append(
-            il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+        self._store(il, op, imm, 1)
 
     def c_sdsp(self, il, op, imm):
         self.sd(il, [op[0], "sp"], imm)
 
-    def lb(self, il, op, imm):
+    def _load(self, il, op, imm, size, extend):
+        """
+        generic helper for load instructions of variou sizes
+        """
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.sign_extend(2, il.const(1, imm)))
-        il.append(il.set_reg(self.addr_size, op[0], il.load(1, offset)))
+        il.append(
+            il.set_reg(self.addr_size, op[0],
+                       extend(self.addr_size, il.load(size, offset))))
+
+    def lb(self, il, op, imm):
+        self._load(il, op, imm, 1, il.sign_extend)
 
     def lbu(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.sign_extend(2, il.const(1, imm)))
-        il.append(
-            il.set_reg(self.addr_size, op[0],
-                       il.zero_extend(self.addr_size, il.load(1, offset))))
+        self._load(il, op, imm, 1, il.zero_extend)
 
     def lh(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.sign_extend(2, il.const(2, imm)))
-        il.append(il.set_reg(self.addr_size, op[0], il.load(2, offset)))
+        self._load(il, op, imm, 2, il.sign_extend)
 
     def lhu(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.zero_extend(22, il.const(2, imm)))
-        il.append(
-            il.set_reg(self.addr_size, op[0],
-                       il.zero_extend(self.addr_size, il.load(16, offset))))
+        self._load(il, op, imm, 2, il.zero_extend)
 
     def lw(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.const(self.addr_size, imm))
-        il.append(il.set_reg(self.addr_size, op[0], il.load(4, offset)))
+        if self.addr_size == 4:
+            self._load(il, op, imm, 4, lambda x, y: y)
+        else:
+            self._load(il, op, imm, 4, il.sign_extend)
+
+    def lwu(self, il, op, imm):
+        if self.addr_size == 4:
+            self._load(il, op, imm, 4, lambda x, y: y)
+        else:
+            self._load(il, op, imm, 4, il.zero_extend)
 
     def ld(self, il, op, imm):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.const(self.addr_size, imm))
-        il.append(il.set_reg(self.addr_size, op[0], il.load(8, offset)))
+        if self.addr_size == 8:
+            self._load(il, op, imm, 8, lambda x, y: y)
+        else:
+            self._load(il, op, imm, 8, il.sign_extend)
 
     def c_ldsp(self, il, op, imm):
         self.ld(il, [op[0], "sp"], imm)
