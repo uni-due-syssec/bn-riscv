@@ -140,17 +140,21 @@ class Lifter:
             ret_adr = op[0]
             base = op[1]
 
-        # copy base register to temp
-        il.append(
-            il.set_reg(self.addr_size, LLIL_TEMP(0),
-                       il.reg(self.addr_size, base)))
-
-        # compute return address and store to ret_addr register
-        inc_expr = il.set_reg(self.addr_size, ret_adr,
-                              il.const(self.addr_size, il.current_address + 4))
+        # the zero register acts as a sink-hole for data, any write to it is
+        # ignored, so we can just omit lifting this to LLIL altogether.
 
         if ret_adr != 'zero':
-            il.append(inc_expr)
+            # copy base register to temp
+            il.append(
+                il.set_reg(self.addr_size, LLIL_TEMP(0),
+                           il.reg(self.addr_size, base)))
+
+            # compute return address and store to ret_addr register
+            il.append(
+                il.set_reg(self.addr_size, ret_adr,
+                           il.const(self.addr_size, il.current_address + 4)))
+
+            # TODO: 
 
         # compute the jump target
         il.append(
