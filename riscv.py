@@ -13,7 +13,7 @@
 #   limitations under the License.
 
 from binaryninja import (Architecture, BranchType, Endianness, InstructionInfo,
-                         RegisterInfo, log_info)
+                         RegisterInfo)
 
 from .instruction import RVDisassembler, gen_token
 from .lifter import Lifter
@@ -146,7 +146,9 @@ class RISCV(Architecture):
         result = InstructionInfo()
         result.length = instr.size
 
-        dest = addr + instr.imm
+        dest = None
+        if instr.imm is not None:
+            dest = addr + instr.imm
 
         if instr.name == 'ret':
             result.add_branch(BranchType.FunctionReturn)
