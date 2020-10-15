@@ -40,14 +40,15 @@ class RVDisassembler:
     """
     Wraps a RISC-V disassembler
     """
+
     def __init__(self, mode):
         if mode == 4:
             self._mode = CS_MODE_RISCV32
         elif mode == 8:
             self._mode = CS_MODE_RISCV64
 
-        # TODO: enable RISC-V compressed ISA
-        # self._mode |= CS_MODE_RISCVC
+        # we enable RISC-V compressed ISA extension by default
+        self._mode |= CS_MODE_RISCVC
 
         # initialize capstone
         self._md = capstone.Cs(CS_ARCH_RISCV, self._mode)
