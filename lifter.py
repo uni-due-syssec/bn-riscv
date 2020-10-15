@@ -142,7 +142,7 @@ class Lifter:
     def jr(self, il, op, imm):
         il.append(il.jump(il.reg(self.addr_size, op[0])))
 
-    def jalr(self, il, op, imm):
+    def jalr(self, il, op, imm, inst_size=4):
 
         if len(op) < 2:
             ret_adr = 'ra'
@@ -162,10 +162,9 @@ class Lifter:
 
             # compute return address and store to ret_addr register
             il.append(
-                il.set_reg(self.addr_size, ret_adr,
-                           il.const(self.addr_size, il.current_address + 4)))
-
-            # TODO: 
+                il.set_reg(
+                    self.addr_size, ret_adr,
+                    il.const(self.addr_size, il.current_address + inst_size)))
 
         # compute the jump target
         il.append(
@@ -179,6 +178,9 @@ class Lifter:
                     il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))))
 
         il.append(il.call(il.reg(self.addr_size, LLIL_TEMP(0))))
+
+    def c_jalr(self, il, op, imm):
+        self.jalr(il, op, imm, inst_size=2)
 
     def ret(self, il, op, imm):
         il.append(
