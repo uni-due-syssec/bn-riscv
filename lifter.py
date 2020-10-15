@@ -12,7 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from binaryninja import Architecture, LowLevelILLabel
+from binaryninja import Architecture, LowLevelILLabel, LLIL_TEMP
 
 # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
 
@@ -110,16 +110,24 @@ class Lifter:
             ret_adr = op[0]
             base = op[1]
 
+        temp_expr = il.set_reg(
+            self.addr_size, LLIL_TEMP(0), il.reg(self.addr_size, base)
+        )
+
+        inc_expr = il.set_reg(
+            self.addr_size, ret_adr, il.const(self.addr_size, il.current_address + 4)
+        )
+
         target = il.and_expr(
             self.addr_size,
-            il.add(self.addr_size, il.reg(self.addr_size, base),
+            il.add(self.addr_size, il.reg(self.addr_size, LLIL_TEMP(0)),
                    il.const(self.addr_size, imm)),
             il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))
 
+        il.append(temp_expr)
+
         if ret_adr != 'zero':
-            il.append(
-                il.set_reg(self.addr_size, ret_adr,
-                           il.const(self.addr_size, il.current_address + 4)))
+            il.append(inc_expr)
 
         il.append(il.call(target))
 
