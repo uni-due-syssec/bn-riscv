@@ -29,10 +29,16 @@ class Lifter:
 
         if mnemonic == 'or':
             mnemonic = 'or_expr'
+        elif mnemonic == 'c.or':
+            mnemonic = 'c.or_expr'
         elif mnemonic == 'and':
             mnemonic = 'and_expr'
+        elif mnemonic == 'c.and':
+            mnemonic = 'c.and_expr'
         elif mnemonic == 'not':
             mnemonic = 'not_expr'
+        elif mnemonic == 'c.not':
+            mnemonic = 'c.not_expr'
 
         handler = None
         ops = instr.op.split()
