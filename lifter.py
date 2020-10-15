@@ -583,3 +583,6 @@ class Lifter:
 
     def nop(self, il, op, imm):
         il.append(il.nop())
+
+    def csrw(self, il, op, imm):
+        il.append(il.set_reg(self.addr_size, op[0], il.undefined()))
