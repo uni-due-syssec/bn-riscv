@@ -210,18 +210,28 @@ class Lifter:
         self.condBranch(il, cond, imm)
 
     def add(self, il, op, imm):
-        il.append(
-            il.set_reg(
-                self.addr_size, op[0],
-                il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                       il.reg(self.addr_size, op[2]))))
+        if op[1] == 'zero':
+            computation = il.reg(self.addr_size, op[2])
+        elif op[2] == 'zero':
+            computation = il.reg(self.addr_size, op[1])
+        else:
+            computation = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                                 il.reg(self.addr_size, op[2]))
+        if op[0] == 'zero':
+            il.append(il.nop())
+        else:
+            il.append(il.set_reg(self.addr_size, op[0], computation))
 
     def addi(self, il, op, imm):
-        il.append(
-            il.set_reg(
-                self.addr_size, op[0],
-                il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                       il.const(self.addr_size, imm))))
+        if op[1] == 'zero':
+            computation = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                                 il.const(self.addr_size, imm))
+        else:
+            computation = il.const(self.addr_size, imm)
+        if op[0] == 'zero':
+            il.append(il.nop())
+        else:
+            il.append(il.set_reg(self.addr_size, op[0], computation))
 
     def sub(self, il, op, imm):
         il.append(
