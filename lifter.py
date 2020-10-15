@@ -267,10 +267,11 @@ class Lifter:
             il.append(il.set_reg(self.addr_size, op[0], computation))
 
     def addi(self, il, op, imm):
-        if op[1] == 'zero':
+        if op[1] != 'zero':
             computation = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                                  il.const(self.addr_size, imm))
         else:
+            # addi rd, zero, 5 => rd == 5
             computation = il.const(self.addr_size, imm)
 
         if op[0] == 'zero':
