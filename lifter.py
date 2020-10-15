@@ -12,7 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from binaryninja import Architecture, LowLevelILLabel, LLIL_TEMP
+from binaryninja import LLIL_TEMP, Architecture, LowLevelILLabel, log_error
 
 # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
 
@@ -34,8 +34,36 @@ class Lifter:
         elif mnemonic == 'not':
             mnemonic = 'not_expr'
 
+        handler = None
+        ops = instr.op.split()
+
         if hasattr(self, mnemonic):
-            getattr(self, mnemonic)(il, instr.op.split(), instr.imm)
+            # regular instruction -> lookup the function in the lifter
+            handler = getattr(self, mnemonic)
+        elif mnemonic.startswith("c."):
+            # compressed instruction prefix
+
+            if hasattr(self, "c_" + mnemonic[2:]):
+                # check if we have a lifter function for the compressed instruction
+                handler = getattr(self, "c_" + mnemonic[2:])
+            elif hasattr(self, mnemonic[2:]):
+                # else fall back to the uncompressed handler
+                handler = getattr(self, mnemonic[2:])
+                # if we have operands, compressed instructions typically follow
+                # the same rule of thumb:
+                # inst rX, rX, P <=> c.inst rX, P
+
+                if ops:
+                    ops = [ops[0]] + ops
+
+        if handler is not None:
+            try:
+                handler(il, ops, instr.imm)
+            except Exception:
+                log_error(
+                    f"failed to lift instruction {mnemonic}@{il.current_address:#x} with handler {handler!r}"
+                )
+                raise
         else:
             il.append(il.unimplemented())
 
@@ -233,6 +261,13 @@ class Lifter:
         else:
             il.append(il.set_reg(self.addr_size, op[0], computation))
 
+    def c_addi4spn(self, il, op, imm):
+        self.addi(il, [op[0], 'sp'], imm)
+
+    def addiw(self, il, op, imm):
+        # TODO: RV64 only
+        il.append(il.unimplemented())
+
     def sub(self, il, op, imm):
         il.append(
             il.set_reg(
@@ -399,19 +434,26 @@ class Lifter:
                 #               il.const(self.addr_size, 12))
                 il.const(self.addr_size, imm << 12)))
 
+    def c_li(self, il, op, imm):
+        il.append(
+            il.set_reg(self.addr_size, op[0], il.const(self.addr_size, imm)))
+
     def auipc(self, il, op, imm):
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.add(
-                    self.addr_size, il.reg(self.addr_size, 'pc'),
-                    il.const(self.addr_size, imm << 12))))
+                il.add(self.addr_size, il.reg(self.addr_size, 'pc'),
+                       il.const(self.addr_size, imm << 12))))
+
+    def sd(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.const(self.addr_size, imm))
+        il.append(il.store(8, offset, il.reg(self.addr_size, op[0])))
 
     def sw(self, il, op, imm):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.const(self.addr_size, imm))
-        il.append(
-            il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+        il.append(il.store(4, offset, il.reg(self.addr_size, op[0])))
 
     def sh(self, il, op, imm):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
@@ -424,6 +466,9 @@ class Lifter:
                         il.const(1, imm))
         il.append(
             il.store(self.addr_size, offset, il.reg(self.addr_size, op[0])))
+
+    def c_sdsp(self, il, op, imm):
+        self.sd(il, [op[0], "sp"], imm)
 
     def lb(self, il, op, imm):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
@@ -452,8 +497,15 @@ class Lifter:
     def lw(self, il, op, imm):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.const(self.addr_size, imm))
-        il.append(
-            il.set_reg(self.addr_size, op[0], il.load(self.addr_size, offset)))
+        il.append(il.set_reg(self.addr_size, op[0], il.load(4, offset)))
+
+    def ld(self, il, op, imm):
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+                        il.const(self.addr_size, imm))
+        il.append(il.set_reg(self.addr_size, op[0], il.load(8, offset)))
+
+    def c_ldsp(self, il, op, imm):
+        self.ld(il, [op[0], "sp"], imm)
 
     def mv(self, il, op, imm):
 
