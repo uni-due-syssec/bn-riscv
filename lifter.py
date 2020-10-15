@@ -291,8 +291,20 @@ class Lifter:
         self.addi(il, [op[0], 'sp'], imm)
 
     def addiw(self, il, op, imm):
-        # TODO: RV64 only
-        il.append(il.unimplemented())
+        if op[1] != 'zero':
+            computation = il.add(4,
+                                 il.low_part(4, il.reg(self.addr_size, op[1])),
+                                 il.const(4, imm))
+        else:
+            # addi rd, zero, 5 => rd == 5
+            computation = il.const(4, imm)
+
+        computation = il.sign_extend(self.addr_size, computation)
+
+        if op[0] == 'zero':
+            il.append(il.nop())
+        else:
+            il.append(il.set_reg(self.addr_size, op[0], computation))
 
     def sub(self, il, op, imm):
         il.append(
