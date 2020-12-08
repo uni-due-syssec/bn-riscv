@@ -10,4 +10,4 @@ First, you will need an installation of [capstone](https://github.com/aquynh/cap
 pip install --user 'git+https://github.com/aquynh/capstone.git@next#subdirectory=bindings/python'
 ```
 
-The drop this into your plugins directory manually.
+Then drop this repository into your plugins directory manually. Note that you should use it from master if possible, releases are somewhat rare.
