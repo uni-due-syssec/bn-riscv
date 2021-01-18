@@ -165,15 +165,18 @@ class Lifter:
             ret_adr = op[0]
             base = op[1]
 
+        # ret_addr => register where the return address is written to
+        # base => call target (+ imm value)
+
+        # copy base register to temp (needed in case base == ret_adr)
+        il.append(
+            il.set_reg(self.addr_size, LLIL_TEMP(0),
+                       il.reg(self.addr_size, base)))
+        base = il.reg(self.addr_size, LLIL_TEMP(0))
+
         # the zero register acts as a sink-hole for data, any write to it is
         # ignored, so we can just omit lifting this to LLIL altogether.
-
         if ret_adr != 'zero':
-            # copy base register to temp
-            il.append(
-                il.set_reg(self.addr_size, LLIL_TEMP(0),
-                           il.reg(self.addr_size, base)))
-
             # compute return address and store to ret_addr register
             il.append(
                 il.set_reg(
@@ -181,25 +184,27 @@ class Lifter:
                     il.const(self.addr_size, il.current_address + inst_size)))
 
         # compute the jump target
-        il.append(
-            il.set_reg(
-                self.addr_size, LLIL_TEMP(0),
-                il.and_expr(
-                    self.addr_size,
-                    il.add(self.addr_size, il.reg(self.addr_size,
-                                                  LLIL_TEMP(0)),
-                           il.const(self.addr_size, imm)),
-                    il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))))
+        dest = base
+        if imm:
+            il.append(
+                il.set_reg(
+                    self.addr_size, LLIL_TEMP(0),
+                    il.add(self.addr_size,
+                           base,
+                           il.const(self.addr_size, imm))))
+            dest = il.reg(self.addr_size, LLIL_TEMP(0))
 
-        if op[0] == 'zero':
-            if op[1] == 'ra':
-                # jalr zero, ra, 0 => jump to returne address, but link address 
-                # is discarded into zero register
-                il.append(il.ret(il.reg(self.addr_size, LLIL_TEMP(0))))
+        if ret_adr == 'zero':
+            if base == 'ra' and not imm:
+                # jalr zero, ra, 0 => jump to return address, but link address
+                # is discarded into zero register => basically a JR ra => "ret"
+                il.append(il.ret(dest))
             else:
-                il.append(il.jump(il.reg(self.addr_size, LLIL_TEMP(0))))
+                # if ret_adr == zero, but base != ra then we basically have a 
+                # normal jump instead of a function call
+                il.append(il.jump(dest))
         else:
-            il.append(il.call(il.reg(self.addr_size, LLIL_TEMP(0))))
+            il.append(il.call(dest))
 
     def c_jalr(self, il, op, imm):
         self.jalr(il, op, imm, inst_size=2)
@@ -476,11 +481,8 @@ class Lifter:
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.and_expr(
-                    self.addr_size, il.reg(self.addr_size, op[1]),
-                    il.sign_extend(
-                        self.addr_size,
-                        il.const(2, imm)))))
+                il.and_expr(self.addr_size, il.reg(self.addr_size, op[1]),
+                            il.sign_extend(self.addr_size, il.const(2, imm)))))
 
     def or_expr(self, il, op, imm):
         il.append(
@@ -493,11 +495,11 @@ class Lifter:
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.or_expr(
-                    self.addr_size, il.reg(self.addr_size, op[1]),
-                    il.sign_extend(
-                        self.addr_size,
-                        il.const(2, imm),))))
+                il.or_expr(self.addr_size, il.reg(self.addr_size, op[1]),
+                           il.sign_extend(
+                               self.addr_size,
+                               il.const(2, imm),
+                           ))))
 
     def xor(self, il, op, imm):
         il.append(
@@ -510,11 +512,8 @@ class Lifter:
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.xor_expr(
-                    self.addr_size, il.reg(self.addr_size, op[1]),
-                    il.sign_extend(
-                        self.addr_size,
-                        il.const(2, imm)))))
+                il.xor_expr(self.addr_size, il.reg(self.addr_size, op[1]),
+                            il.sign_extend(self.addr_size, il.const(2, imm)))))
 
     def sll(self, il, op, imm):
         il.append(
