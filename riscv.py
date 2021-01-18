@@ -159,7 +159,7 @@ class RISCV(Architecture):
             result.add_branch(BranchType.FunctionReturn)
         elif instr.name in branch_ins:
             result.add_branch(BranchType.TrueBranch, dest)
-            result.add_branch(BranchType.FalseBranch, addr + 4)
+            result.add_branch(BranchType.FalseBranch, addr + instr.size)
         elif instr.name in direct_call_ins:
             result.add_branch(BranchType.CallDestination, dest)
         elif instr.name in indirect_call_ins:
