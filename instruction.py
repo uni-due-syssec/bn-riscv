@@ -24,6 +24,10 @@ _OFFSET = set([
     'bltu', 'bgeu', 'jal', 'jalr', 'j', 'jr'
 ])
 
+for bi in list(_OFFSET):  # use list() to clone here
+    if not bi.startswith('c.'):
+        _OFFSET.add('c.' + bi)
+
 
 class RVInstruction:
     __slots__ = 'size', 'name', 'op', 'imm', 'imm_val'

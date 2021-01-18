@@ -23,8 +23,12 @@ branch_ins = set([
     'bltz', 'bgtz'
 ])
 
-direct_call_ins = set(['jal', 'j'])
-indirect_call_ins = set(['jalr', 'jr'])
+for bi in list(branch_ins):  # use list() to clone here
+    if not bi.startswith('c.'):
+        branch_ins.add('c.' + bi)
+
+direct_call_ins = set(['jal', 'j', 'c.j', 'c.jal'])
+indirect_call_ins = set(['jalr', 'jr', 'c.jalr', 'c.jr'])
 
 
 class RISCV(Architecture):
