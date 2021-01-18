@@ -285,6 +285,22 @@ class Lifter:
         else:
             il.append(il.set_reg(self.addr_size, op[0], computation))
 
+    def addw(self, il, op, imm):
+        if op[1] == 'zero':
+            computation = il.reg(4, op[2])
+        elif op[2] == 'zero':
+            computation = il.reg(4, op[1])
+        else:
+            computation = il.add(4, il.reg(self.addr_size, op[1]),
+                                 il.reg(self.addr_size, op[2]))
+
+        if op[0] == 'zero':
+            il.append(il.nop())
+        else:
+            il.append(
+                il.set_reg(self.addr_size, op[0],
+                           il.sign_extend(self.addr_size, computation)))
+
     def addi(self, il, op, imm):
         if op[1] != 'zero':
             computation = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
@@ -300,6 +316,11 @@ class Lifter:
 
     def c_addi4spn(self, il, op, imm):
         self.addi(il, [op[0], 'sp'], imm)
+
+    def c_addi16sp(self, il, op, imm):
+        il.append(
+            il.add(self.addr_size, il.reg(self.addr_size, 'sp'),
+                   il.const(self.addr_size, imm)))
 
     def addiw(self, il, op, imm):
         if op[1] != 'zero':
@@ -317,6 +338,11 @@ class Lifter:
         else:
             il.append(il.set_reg(self.addr_size, op[0], computation))
 
+    def sext_w(self, il, op, imm):
+        il.append(
+            il.set_reg(self.addr_size, op[0],
+                       il.sign_extend(self.addr_size, il.reg(4, op[1]))))
+
     def sub(self, il, op, imm):
         il.append(
             il.set_reg(
@@ -324,11 +350,36 @@ class Lifter:
                 il.sub(self.addr_size, il.reg(self.addr_size, op[1]),
                        il.reg(self.addr_size, op[2]))))
 
+    def subw(self, il, op, imm):
+        if op[1] == 'zero':
+            computation = il.reg(4, op[2])
+        elif op[2] == 'zero':
+            computation = il.reg(4, op[1])
+        else:
+            computation = il.sub(4, il.reg(self.addr_size, op[1]),
+                                 il.reg(self.addr_size, op[2]))
+
+        if op[0] == 'zero':
+            il.append(il.nop())
+        else:
+            il.append(
+                il.set_reg(self.addr_size, op[0],
+                           il.sign_extend(self.addr_size, computation)))
+
     def neg(self, il, op, imm):
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
                 il.neg_expr(self.addr_size, il.reg(self.addr_size, op[1]))))
+
+    def negw(self, il, op, imm):
+        """RV64 only - negate 32-bit value in register"""
+        # self.subw(il, [op[0], 'zero', op[1]])
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(self.addr_size,
+                               il.neg_expr(4, il.reg(self.addr_size, op[1])))))
 
     def not_expr(self, il, op, imm):
         il.append(
@@ -357,19 +408,55 @@ class Lifter:
                 il.div_unsigned(self.addr_size, il.reg(self.addr_size, op[1]),
                                 il.reg(self.addr_size, op[2]))))
 
-    def mod(self, il, op, imm):
+    def divw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.div_signed(4, il.reg(self.addr_size, op[1]),
+                                  il.reg(self.addr_size, op[2])))))
+
+    def divuw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.div_unsigned(4, il.reg(self.addr_size, op[1]),
+                                    il.reg(self.addr_size, op[2])))))
+
+    def rem(self, il, op, imm):
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
                 il.mod_signed(self.addr_size, il.reg(self.addr_size, op[1]),
                               il.reg(self.addr_size, op[2]))))
 
-    def modu(self, il, op, imm):
+    def remu(self, il, op, imm):
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
                 il.mod_unsigned(self.addr_size, il.reg(self.addr_size, op[1]),
                                 il.reg(self.addr_size, op[2]))))
+
+    def remw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.mod_signed(4, il.reg(self.addr_size, op[1]),
+                                  il.reg(self.addr_size, op[2])))))
+
+    def remuw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.mod_unsigned(4, il.reg(self.addr_size, op[1]),
+                                    il.reg(self.addr_size, op[2])))))
 
     def and_expr(self, il, op, imm):
         il.append(
@@ -432,13 +519,30 @@ class Lifter:
                 il.shift_left(self.addr_size, il.reg(self.addr_size, op[1]),
                               il.reg(self.addr_size, op[2]))))
 
+    def sllw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.shift_left(4, il.reg(self.addr_size, op[1]),
+                                  il.reg(self.addr_size, op[2])))))
+
     def slli(self, il, op, imm):
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.shift_left(
-                    self.addr_size, il.reg(self.addr_size, op[1]),
-                    il.and_expr(1, il.const(1, imm), il.const(1, 0xf)))))
+                il.shift_left(self.addr_size, il.reg(self.addr_size, op[1]),
+                              il.const(1, imm))))
+
+    def slliw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.shift_left(4, il.reg(self.addr_size, op[1]),
+                                  il.const(1, imm)))))
 
     def srl(self, il, op, imm):
         il.append(
@@ -448,13 +552,31 @@ class Lifter:
                                        il.reg(self.addr_size, op[1]),
                                        il.reg(self.addr_size, op[2]))))
 
+    def srlw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.logical_shift_right(4, il.reg(self.addr_size, op[1]),
+                                           il.reg(self.addr_size, op[2])))))
+
     def srli(self, il, op, imm):
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.logical_shift_right(
-                    self.addr_size, il.reg(self.addr_size, op[1]),
-                    il.and_expr(1, il.const(1, imm), il.const(1, 0xf)))))
+                il.logical_shift_right(self.addr_size,
+                                       il.reg(self.addr_size, op[1]),
+                                       il.const(1, imm))))
+
+    def srliw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.logical_shift_right(4, il.reg(self.addr_size, op[1]),
+                                           il.const(1, imm)))))
 
     def sra(self, il, op, imm):
         il.append(
@@ -464,6 +586,15 @@ class Lifter:
                                      il.reg(self.addr_size, op[1]),
                                      il.reg(self.addr_size, op[2]))))
 
+    def sraw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.arith_shift_right(4, il.reg(self.addr_size, op[1]),
+                                         il.reg(self.addr_size, op[2])))))
+
     def srai(self, il, op, imm):
         il.append(
             il.set_reg(
@@ -471,6 +602,15 @@ class Lifter:
                 il.arith_shift_right(self.addr_size,
                                      il.reg(self.addr_size, op[1]),
                                      il.const(self.addr_size, imm))))
+
+    def sraiw(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.sign_extend(
+                    self.addr_size,
+                    il.arith_shift_right(4, il.reg(self.addr_size, op[1]),
+                                         il.const(1, imm)))))
 
     def lui(self, il, op, imm):
         il.append(
@@ -481,7 +621,7 @@ class Lifter:
                 #               il.zero_extend(self.addr_size, il.const(3, imm)),
                 #               # il.const(self.addr_size, imm)),
                 #               il.const(self.addr_size, 12))
-                il.const(self.addr_size, imm << 12)))
+                il.const(self.addr_size, imm)))
 
     def c_li(self, il, op, imm):
         il.append(
@@ -520,9 +660,15 @@ class Lifter:
     def c_sdsp(self, il, op, imm):
         self.sd(il, [op[0], "sp"], imm)
 
+    def sc_w(self, il, op, imm):
+        self._store(il, op, imm, 4)
+
+    def sc_d(self, il, op, imm):
+        self._store(il, op, imm, 8)
+
     def _load(self, il, op, imm, size, extend):
         """
-        generic helper for load instructions of variou sizes
+        generic helper for load instructions of various sizes
         """
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.sign_extend(2, il.const(1, imm)))
@@ -562,6 +708,12 @@ class Lifter:
 
     def c_ldsp(self, il, op, imm):
         self.ld(il, [op[0], "sp"], imm)
+
+    def lr_w(self, il, op, imm):
+        self.lw(il, op, imm)
+
+    def lr_d(self, il, op, imm):
+        self.ld(il, op, imm)
 
     def mv(self, il, op, imm):
 
@@ -609,6 +761,29 @@ class Lifter:
                                               il.reg(self.addr_size, op[1]),
                                               il.const(self.addr_size, imm))))
 
+    def seqz(self, il, op, imm):
+        """
+        Set if = zero
+        alias for: sltiu rd, rs, 1
+        """
+        self.sltiu(il, op, 1)
+        # TODO: I think we can instead of calling the alias we could use a
+        # "more optimized" lifting here?
+        # il.append
+
+    def snez(self, il, op, imm):
+        """
+        Set if != zero
+        alias for sltu rd, x0, rs
+        """
+        self.sltu(il, [op[0], 'zero', op[1]], None)
+
+    def sltz(self, il, op, imm):
+        self.slt(il, [op[0], op[1], 'zero'], imm)
+
+    def sgtz(self, il, op, imm):
+        self.slt(il, [op[0], 'zero', op[1]], imm)
+
     def ecall(self, il, op, imm):
         il.append(il.system_call())
 
@@ -620,3 +795,11 @@ class Lifter:
 
     def csrw(self, il, op, imm):
         il.append(il.set_reg(self.addr_size, op[0], il.undefined()))
+
+    # floating point instructions
+
+    def fld(self, il, op, imm):
+        self._load(il, op, imm, 8, lambda x, y: y)
+
+    def fsd(self, il, op, imm):
+        self._store(il, op, imm, 8)
