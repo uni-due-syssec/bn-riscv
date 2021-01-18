@@ -631,11 +631,11 @@ class Lifter:
             il.set_reg(self.addr_size, op[0], il.const(self.addr_size, imm)))
 
     def auipc(self, il, op, imm):
+        val = (il.current_address + (imm << 12)) % (2**(8 * self.addr_size))
         il.append(
             il.set_reg(
                 self.addr_size, op[0],
-                il.const(self.addr_size, (il.current_address + (imm << 12)) %
-                         (2**(8 * self.addr_size)))))
+                il.const(self.addr_size, val)))
 
     def _store(self, il, op, imm, size):
         offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
