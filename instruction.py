@@ -17,7 +17,7 @@ from capstone import (CS_ARCH_RISCV, CS_MODE_RISCV32, CS_MODE_RISCV64,
                       CS_MODE_RISCVC)
 from capstone.riscv import RISCV_OP_IMM, RISCV_OP_MEM, RISCV_OP_REG
 
-from binaryninja import InstructionTextToken, InstructionTextTokenType
+from binaryninja import InstructionTextToken, InstructionTextTokenType, log_warn
 
 _OFFSET = set([
     'beq', 'beqz', 'bne', 'bnez', 'bge', 'blez', 'bgez', 'blt', 'bltz', 'bgtz',
@@ -30,21 +30,22 @@ for bi in list(_OFFSET):  # use list() to clone here
 
 
 class RVInstruction:
-    __slots__ = 'size', 'name', 'op', 'imm', 'imm_val'
+    __slots__ = 'size', 'name', 'op_str', 'operands', 'imm', 'imm_val', '_cs_inst'
 
-    def __init__(self, size, name, op, imm, imm_val):
+    def __init__(self, size, name, op_str, operands, imm, imm_val):
         self.size = size
         self.name = name
-        self.op = op
+        self.op_str = op_str
+        self.operands = operands
         self.imm = imm
         self.imm_val = imm_val
+        self._cs_inst = None
 
 
 class RVDisassembler:
     """
     Wraps a RISC-V disassembler
     """
-
     def __init__(self, mode):
         if mode == 4:
             self._mode = CS_MODE_RISCV32
@@ -60,8 +61,9 @@ class RVDisassembler:
         self._md.detail = True
 
     def decode(self, data, addr):
-        op = ""
+        op_str = ""
         imm = 0
+        operands = []
 
         for insn in self._md.disasm(data, addr):
             size = insn.size
@@ -71,18 +73,25 @@ class RVDisassembler:
             if len(insn.operands) > 0:
                 for i in insn.operands:
                     if i.type == RISCV_OP_REG:
-                        op += " " + (insn.reg_name(i.value.reg))
+                        op_str += " " + (insn.reg_name(i.value.reg))
+                        operands.append(insn.reg_name(i.value.reg))
                     elif i.type == RISCV_OP_IMM:
                         imm = i.value.imm
                         imm_val = True
                     elif i.type == RISCV_OP_MEM:
                         if i.mem.base != 0:
-                            op += " " + insn.reg_name(i.mem.base)
+                            op_str += " " + insn.reg_name(i.mem.base)
+                            operands.append(insn.reg_name(i.mem.base))
+
                         if i.mem.disp != 0:
                             imm = i.mem.disp
                             imm_val = True
+                    else:
+                        log_warn(
+                            f"[RISC-V] unhandled capstone instruction type {i.type!r}"
+                        )
 
-            return RVInstruction(size, name, op, imm, imm_val)
+            return RVInstruction(size, name, op_str, operands, imm, imm_val)
 
 
 def gen_token(instr):
@@ -90,7 +99,8 @@ def gen_token(instr):
         InstructionTextToken(InstructionTextTokenType.InstructionToken,
                              "{:6} ".format(instr.name))
     ]
-    operands = instr.op.split()
+    operands = instr.operands
+
     for i in operands:
         tokens.append(
             InstructionTextToken(InstructionTextTokenType.TextToken, " "))
@@ -100,6 +110,7 @@ def gen_token(instr):
     if instr.imm_val:
         tokens.append(
             InstructionTextToken(InstructionTextTokenType.TextToken, " "))
+
         if instr.name in _OFFSET:
             tokens.append(
                 InstructionTextToken(
@@ -111,4 +122,5 @@ def gen_token(instr):
                 InstructionTextToken(InstructionTextTokenType.IntegerToken,
                                      hex(instr.imm),
                                      value=instr.imm))
+
     return tokens

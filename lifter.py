@@ -12,9 +12,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from binaryninja import LLIL_TEMP, Architecture, LowLevelILLabel, log_error
+from binaryninja import LLIL_TEMP, Architecture, LowLevelILLabel, log_error, log_warn
 
 # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
+
+_unliftable = set()
 
 
 class Lifter:
@@ -40,13 +42,16 @@ class Lifter:
         elif mnemonic == 'c.not':
             mnemonic = 'c.not_expr'
 
+        # we need this to handle instructions with a '.' in the middle (e.g., "sext.w")
+        mnemonic = mnemonic.replace(".", "_")
+
         handler = None
-        ops = instr.op.split()
+        ops = instr.operands
 
         if hasattr(self, mnemonic):
             # regular instruction -> lookup the function in the lifter
             handler = getattr(self, mnemonic)
-        elif mnemonic.startswith("c."):
+        elif mnemonic.startswith("c_"):
             # compressed instruction prefix
 
             if hasattr(self, "c_" + mnemonic[2:]):
@@ -71,6 +76,12 @@ class Lifter:
                 )
                 raise
         else:
+            # print unimplemented mnemonics as warning, but just once
+
+            if mnemonic not in _unliftable:
+                log_warn(f"[RISCV] cannot lift instruction: {mnemonic}")
+                _unliftable.add(mnemonic)
+
             il.append(il.unimplemented())
 
     def condBranch(self, il, cond, imm):
