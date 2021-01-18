@@ -30,9 +30,10 @@ for bi in list(_OFFSET):  # use list() to clone here
 
 
 class RVInstruction:
-    __slots__ = 'size', 'name', 'op_str', 'operands', 'imm', 'imm_val', '_cs_inst'
+    __slots__ = 'address', 'size', 'name', 'op_str', 'operands', 'imm', 'imm_val', '_cs_inst'
 
-    def __init__(self, size, name, op_str, operands, imm, imm_val):
+    def __init__(self, address, size, name, op_str, operands, imm, imm_val):
+        self.address = address
         self.size = size
         self.name = name
         self.op_str = op_str
@@ -91,7 +92,7 @@ class RVDisassembler:
                             f"[RISC-V] unhandled capstone instruction type {i.type!r}"
                         )
 
-            return RVInstruction(size, name, op_str, operands, imm, imm_val)
+            return RVInstruction(insn.address, size, name, op_str, operands, imm, imm_val)
 
 
 def gen_token(instr):
@@ -112,11 +113,12 @@ def gen_token(instr):
             InstructionTextToken(InstructionTextTokenType.TextToken, " "))
 
         if instr.name in _OFFSET:
+            val = instr.address + instr.imm
             tokens.append(
                 InstructionTextToken(
                     InstructionTextTokenType.PossibleAddressToken,
-                    hex(instr.imm),
-                    value=instr.imm))
+                    hex(val),
+                    value=val))
         else:
             tokens.append(
                 InstructionTextToken(InstructionTextTokenType.IntegerToken,
