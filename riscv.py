@@ -27,8 +27,10 @@ for bi in list(branch_ins):  # use list() to clone here
     if not bi.startswith('c.'):
         branch_ins.add('c.' + bi)
 
-direct_call_ins = set(['jal', 'j', 'c.j', 'c.jal'])
-indirect_call_ins = set(['jalr', 'jr', 'c.jalr', 'c.jr'])
+direct_jump_ins = set(['j', 'c.j'])
+indirect_jump_ins = set(['jr', 'c.jr'])
+direct_call_ins = set(['jal', 'c.jal'])
+indirect_call_ins = set(['jalr', 'c.jalr'])
 
 
 class RISCV(Architecture):
@@ -155,17 +157,41 @@ class RISCV(Architecture):
         if instr.imm is not None:
             dest = addr + instr.imm
 
-        if instr.name == 'ret':
+        if instr.name == 'ret' or self._looks_like_ret(instr):
             result.add_branch(BranchType.FunctionReturn)
         elif instr.name in branch_ins:
             result.add_branch(BranchType.TrueBranch, dest)
             result.add_branch(BranchType.FalseBranch, addr + instr.size)
+        elif instr.name in direct_jump_ins:
+            result.add_branch(BranchType.UnconditionalBranch, dest)
+        elif instr.name in indirect_jump_ins:
+            result.add_branch(BranchType.UnresolvedBranch)
         elif instr.name in direct_call_ins:
             result.add_branch(BranchType.CallDestination, dest)
         elif instr.name in indirect_call_ins:
             result.add_branch(BranchType.UnresolvedBranch)
 
         return result
+
+    def _looks_like_ret(self, instr):
+        """
+        Check for jump instruction that look like functions returns.
+        """
+        # any register jump to 'ra' the return address register, is probably a 
+        # function return.
+
+        if (instr.name == 'jalr' and instr.operands[0] == 'zero'
+                and instr.operands[1] == 'ra' and not instr.imm):
+            # if jalr does not link into zero, then something weird
+            # is going on and we don't want to mark this as a return.
+            # similarly if a offset is added (via imm) to the ra register,
+            # then this also doesn't look like a function return.
+            return True
+        elif (instr.name == 'jr' and instr.operands[0] == 'ra'
+              and not instr.imm):
+            return True
+
+        return False
 
     def get_instruction_text(self, data, addr):
 

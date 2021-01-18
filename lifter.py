@@ -151,7 +151,10 @@ class Lifter:
                 il.jump(il.const(self.addr_size, il.current_address + imm)))
 
     def jr(self, il, op, imm):
-        il.append(il.jump(il.reg(self.addr_size, op[0])))
+        if op[0] == 'ra':
+            il.append(il.ret(il.reg(self.addr_size, op[0])))
+        else:
+            il.append(il.jump(il.reg(self.addr_size, op[0])))
 
     def jalr(self, il, op, imm, inst_size=4):
 
@@ -188,18 +191,22 @@ class Lifter:
                            il.const(self.addr_size, imm)),
                     il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))))
 
-        il.append(il.call(il.reg(self.addr_size, LLIL_TEMP(0))))
+        if op[0] == 'zero':
+            if op[1] == 'ra':
+                # jalr zero, ra, 0 => jump to returne address, but link address 
+                # is discarded into zero register
+                il.append(il.ret(il.reg(self.addr_size, LLIL_TEMP(0))))
+            else:
+                il.append(il.jump(il.reg(self.addr_size, LLIL_TEMP(0))))
+        else:
+            il.append(il.call(il.reg(self.addr_size, LLIL_TEMP(0))))
 
     def c_jalr(self, il, op, imm):
         self.jalr(il, op, imm, inst_size=2)
 
     def ret(self, il, op, imm):
-        il.append(
-            il.ret(
-                il.and_expr(
-                    self.addr_size, il.reg(self.addr_size, 'ra'),
-                    il.neg_expr(self.addr_size, il.const(self.addr_size, 2)))))
-        il.append(il.pop(self.addr_size))
+        il.append(il.ret(il.reg(self.addr_size, 'ra')))
+        # il.append(il.pop(self.addr_size))
 
     def beq(self, il, op, imm):
         cond = il.compare_equal(self.addr_size, il.reg(self.addr_size, op[0]),
@@ -473,8 +480,7 @@ class Lifter:
                     self.addr_size, il.reg(self.addr_size, op[1]),
                     il.sign_extend(
                         self.addr_size,
-                        il.and_expr(2, il.const(2, imm), il.const(2,
-                                                                  0xfff))))))
+                        il.const(2, imm)))))
 
     def or_expr(self, il, op, imm):
         il.append(
@@ -491,8 +497,7 @@ class Lifter:
                     self.addr_size, il.reg(self.addr_size, op[1]),
                     il.sign_extend(
                         self.addr_size,
-                        il.and_expr(2, il.const(2, imm), il.const(2,
-                                                                  0xfff))))))
+                        il.const(2, imm),))))
 
     def xor(self, il, op, imm):
         il.append(
@@ -509,8 +514,7 @@ class Lifter:
                     self.addr_size, il.reg(self.addr_size, op[1]),
                     il.sign_extend(
                         self.addr_size,
-                        il.and_expr(2, il.const(2, imm), il.const(2,
-                                                                  0xfff))))))
+                        il.const(2, imm)))))
 
     def sll(self, il, op, imm):
         il.append(
@@ -660,6 +664,9 @@ class Lifter:
     def c_sdsp(self, il, op, imm):
         self.sd(il, [op[0], "sp"], imm)
 
+    def c_swsp(self, il, op, imm):
+        self.sw(il, [op[0], "sp"], imm)
+
     def sc_w(self, il, op, imm):
         self._store(il, op, imm, 4)
 
@@ -708,6 +715,9 @@ class Lifter:
 
     def c_ldsp(self, il, op, imm):
         self.ld(il, [op[0], "sp"], imm)
+
+    def c_lwsp(self, il, op, imm):
+        self.lw(il, [op[0], "sp"], imm)
 
     def lr_w(self, il, op, imm):
         self.lw(il, op, imm)
