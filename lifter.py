@@ -562,6 +562,10 @@ class Lifter:
                 il.set_reg(self.addr_size, op[0],
                            il.reg(self.addr_size, op[1])))
 
+    # we need this, s.t., the lookup in the lift function above doesn't prepend
+    # the 0 argument needlessly
+    c_mv = mv
+
     def slt(self, il, op, imm):
         il.append(
             il.set_reg(
