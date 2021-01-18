@@ -30,6 +30,6 @@
       "git+https://github.com/aquynh/capstone.git#subdirectory=bindings/python@next"
     ]
   },
-  "version": "0.1",
+  "version": "0.2",
   "minimumbinaryninjaversion": 0
 }
