@@ -20,7 +20,7 @@ from .lifter import Lifter
 
 branch_ins = set([
     'beq', 'bne', 'beqz', 'bnez', 'bge', 'bgeu', 'blt', 'bltu', 'blez', 'bgez',
-    'bltz', 'bgtz'
+    'bltz', 'bgtz', 'c.bnez', 'c.beqz'
 ])
 
 direct_call_ins = set(['jal', 'j'])
