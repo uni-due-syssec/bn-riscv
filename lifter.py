@@ -268,7 +268,7 @@ class Lifter:
     def bgeu(self, il, op, imm):
         cond = il.compare_unsigned_greater_equal(self.addr_size,
                                                  il.reg(self.addr_size, op[0]),
-                                                 il.reg(self.addr_size, op[0]))
+                                                 il.reg(self.addr_size, op[1]))
         self.condBranch(il, cond, imm)
 
     def blez(self, il, op, imm):
