@@ -180,7 +180,8 @@ class RISCV(Architecture):
         # any register jump to 'ra' the return address register, is probably a 
         # function return.
 
-        if (instr.name == 'jalr' and instr.operands[0] == 'zero'
+        if (instr.name == 'jalr' and len(instr.operands) == 2 and
+                instr.operands[0] == 'zero'
                 and instr.operands[1] == 'ra' and not instr.imm):
             # if jalr does not link into zero, then something weird
             # is going on and we don't want to mark this as a return.
