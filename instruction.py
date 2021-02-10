@@ -42,6 +42,9 @@ class RVInstruction:
         self.imm_val = imm_val
         self._cs_inst = None
 
+    def __repr__(self):
+        return f"RVInstruction({self.address!r}, {self.size!r}, {self.name!r}, {self.op_str!r}, {self.operands!r}, {self.imm!r}, {self.imm_val!r})"
+
 
 class RVDisassembler:
     """
@@ -66,33 +69,37 @@ class RVDisassembler:
         imm = 0
         operands = []
 
-        for insn in self._md.disasm(data, addr):
-            size = insn.size
-            name = insn.mnemonic
-            imm_val = False
+        try:
+            insn = next(self._md.disasm(data, addr, count=1))
+        except StopIteration:
+            return None
+        size = insn.size
+        name = insn.mnemonic
+        imm_val = False
 
-            if len(insn.operands) > 0:
-                for i in insn.operands:
-                    if i.type == RISCV_OP_REG:
-                        op_str += " " + (insn.reg_name(i.value.reg))
-                        operands.append(insn.reg_name(i.value.reg))
-                    elif i.type == RISCV_OP_IMM:
-                        imm = i.value.imm
+        if len(insn.operands) > 0:
+            for i in insn.operands:
+                if i.type == RISCV_OP_REG:
+                    op_str += " " + (insn.reg_name(i.value.reg))
+                    operands.append(insn.reg_name(i.value.reg))
+                elif i.type == RISCV_OP_IMM:
+                    imm = i.value.imm
+                    imm_val = True
+                elif i.type == RISCV_OP_MEM:
+                    if i.mem.base != 0:
+                        op_str += " " + insn.reg_name(i.mem.base)
+                        operands.append(insn.reg_name(i.mem.base))
+
+                    if i.mem.disp != 0:
+                        imm = i.mem.disp
                         imm_val = True
-                    elif i.type == RISCV_OP_MEM:
-                        if i.mem.base != 0:
-                            op_str += " " + insn.reg_name(i.mem.base)
-                            operands.append(insn.reg_name(i.mem.base))
+                else:
+                    log_warn(
+                        f"[RISC-V] unhandled capstone instruction type {i.type!r} (while disassembling {name})"
+                    )
 
-                        if i.mem.disp != 0:
-                            imm = i.mem.disp
-                            imm_val = True
-                    else:
-                        log_warn(
-                            f"[RISC-V] unhandled capstone instruction type {i.type!r}"
-                        )
-
-            return RVInstruction(insn.address, size, name, op_str, operands, imm, imm_val)
+        return RVInstruction(insn.address, size, name, op_str, operands, imm,
+                             imm_val)
 
 
 def gen_token(instr):
@@ -113,7 +120,8 @@ def gen_token(instr):
             InstructionTextToken(InstructionTextTokenType.TextToken, " "))
 
         if instr.name in _OFFSET:
-            val = instr.address + instr.imm
+            # val = instr.address + instr.imm
+            val = instr.imm
             tokens.append(
                 InstructionTextToken(
                     InstructionTextTokenType.PossibleAddressToken,
