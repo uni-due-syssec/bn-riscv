@@ -176,6 +176,7 @@ class Lifter:
 
         # the zero register acts as a sink-hole for data, any write to it is
         # ignored, so we can just omit lifting this to LLIL altogether.
+
         if ret_adr != 'zero':
             # compute return address and store to ret_addr register
             il.append(
@@ -185,13 +186,13 @@ class Lifter:
 
         # compute the jump target
         dest = base
+
         if imm:
             il.append(
                 il.set_reg(
                     self.addr_size, LLIL_TEMP(0),
-                    il.add(self.addr_size,
-                           base,
-                           il.const(self.addr_size, imm))))
+                    il.add(self.addr_size, base, il.const(self.addr_size,
+                                                          imm))))
             dest = il.reg(self.addr_size, LLIL_TEMP(0))
 
         if ret_adr == 'zero':
@@ -200,7 +201,7 @@ class Lifter:
                 # is discarded into zero register => basically a JR ra => "ret"
                 il.append(il.ret(dest))
             else:
-                # if ret_adr == zero, but base != ra then we basically have a 
+                # if ret_adr == zero, but base != ra then we basically have a
                 # normal jump instead of a function call
                 il.append(il.jump(dest))
         else:
@@ -330,9 +331,9 @@ class Lifter:
         self.addi(il, [op[0], 'sp'], imm)
 
     def c_addi16sp(self, il, op, imm):
-        il.append(
-            il.add(self.addr_size, il.reg(self.addr_size, 'sp'),
-                   il.const(self.addr_size, imm)))
+        newsp = il.add(self.addr_size, il.reg(self.addr_size, 'sp'),
+                       il.const(self.addr_size, imm))
+        il.append(il.set_reg(self.addr_size, 'sp', newsp))
 
     def addiw(self, il, op, imm):
         if op[1] != 'zero':
@@ -633,12 +634,11 @@ class Lifter:
     def auipc(self, il, op, imm):
         val = (il.current_address + (imm << 12)) % (2**(8 * self.addr_size))
         il.append(
-            il.set_reg(
-                self.addr_size, op[0],
-                il.const(self.addr_size, val)))
+            il.set_reg(self.addr_size, op[0], il.const(self.addr_size, val)))
 
     def _store(self, il, op, imm, size):
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
+        offset = il.add(self.addr_size,
+                        il.reg(self.addr_size, op[1]),
                         il.const(self.addr_size, imm))
 
         if op[0] == 'zero':
@@ -651,7 +651,13 @@ class Lifter:
     def sd(self, il, op, imm):
         self._store(il, op, imm, 8)
 
+    def c_sd(self, il, op, imm):
+        self._store(il, op, imm, 8)
+
     def sw(self, il, op, imm):
+        self._store(il, op, imm, 4)
+
+    def c_sw(self, il, op, imm):
         self._store(il, op, imm, 4)
 
     def sh(self, il, op, imm):
@@ -676,8 +682,10 @@ class Lifter:
         """
         generic helper for load instructions of various sizes
         """
-        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
-                        il.sign_extend(2, il.const(1, imm)))
+        offset = il.add(
+            self.addr_size, il.reg(self.addr_size, op[1]),
+            il.sign_extend(self.addr_size,
+                           il.const(((imm.bit_length() // 8) + 1), imm)))
         il.append(
             il.set_reg(self.addr_size, op[0],
                        extend(self.addr_size, il.load(size, offset))))
@@ -807,8 +815,23 @@ class Lifter:
 
     # floating point instructions
 
+    def flw(self, il, op, imm):
+        self._load(il, op, imm, 4, lambda x, y: y)
+
+    def c_flwsp(self, il, op, imm):
+        self.flw(il, [op[0], "sp"], imm)
+
     def fld(self, il, op, imm):
         self._load(il, op, imm, 8, lambda x, y: y)
 
+    def fsw(self, il, op, imm):
+        self._store(il, op, imm, 4)
+
+    def c_fswsp(self, il, op, imm):
+        self.fsw(il, [op[0], "sp"], imm)
+
     def fsd(self, il, op, imm):
         self._store(il, op, imm, 8)
+
+    def c_fsdsp(self, il, op, imm):
+        self.fsd(il, [op[0], "sp"], imm)
