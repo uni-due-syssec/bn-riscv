@@ -64,7 +64,8 @@ class Lifter:
                 # the same rule of thumb:
                 # inst rX, rX, P <=> c.inst rX, P
 
-                if ops:
+                # compressed loads and stores just use the same operands
+                if ops and mnemonic[2:] not in {'lw', 'ld', 'lq', 'sw', 'sd', 'sq'}:
                     ops = [ops[0]] + ops
 
         if handler is not None:
