@@ -12,7 +12,9 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from binaryninja import LLIL_TEMP, Architecture, LowLevelILLabel, log_error, log_warn
+from binaryninja import LLIL_TEMP, Architecture, LowLevelILLabel, log_error, log_warn, LowLevelILFunction
+
+from .instruction import RVInstruction
 
 # TODO: make sure all expressions are lifted correctly for risc-v 64-bit
 
@@ -24,10 +26,17 @@ class Lifter:
         self.arch_name = arch_name
         self.addr_size = addr_size
 
-    def lift(self, il, instr, mnemonic):
+    def lift(self, il: LowLevelILFunction, instr: RVInstruction,
+             mnemonic: str):
         """
         main entry point for lifting instruction to LLIL
         """
+
+        # strip "atomic" prefix/suffix
+        if mnemonic.startswith("amo"):
+            mnemonic = mnemonic[3:]
+        if mnemonic.endswith((".aq", ".rl")):
+            mnemonic = mnemonic[:-3]
 
         mnemonic = {
             'or': 'or_expr',
