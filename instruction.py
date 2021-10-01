@@ -19,14 +19,11 @@ from capstone.riscv import RISCV_OP_IMM, RISCV_OP_MEM, RISCV_OP_REG
 
 from binaryninja import InstructionTextToken, InstructionTextTokenType, log_warn
 
-_OFFSET = set([
+_OFFSET = {
     'beq', 'beqz', 'bne', 'bnez', 'bge', 'blez', 'bgez', 'blt', 'bltz', 'bgtz',
     'bltu', 'bgeu', 'jal', 'jalr', 'j', 'jr'
-])
-
-for bi in list(_OFFSET):  # use list() to clone here
-    if not bi.startswith('c.'):
-        _OFFSET.add('c.' + bi)
+}
+_OFFSET.update(["c." + bi for bi in _OFFSET if not bi.startswith('c.')])
 
 
 class RVInstruction:

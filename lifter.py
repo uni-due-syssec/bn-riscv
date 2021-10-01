@@ -29,18 +29,14 @@ class Lifter:
         main entry point for lifting instruction to LLIL
         """
 
-        if mnemonic == 'or':
-            mnemonic = 'or_expr'
-        elif mnemonic == 'c.or':
-            mnemonic = 'c.or_expr'
-        elif mnemonic == 'and':
-            mnemonic = 'and_expr'
-        elif mnemonic == 'c.and':
-            mnemonic = 'c.and_expr'
-        elif mnemonic == 'not':
-            mnemonic = 'not_expr'
-        elif mnemonic == 'c.not':
-            mnemonic = 'c.not_expr'
+        mnemonic = {
+            'or': 'or_expr',
+            'c.or': 'c.or_expr',
+            'and': 'and_expr',
+            'c.and': 'c.and_expr',
+            'not': 'not_expr',
+            'c.not': 'c.not_expr',
+        }.get(mnemonic, mnemonic)
 
         # we need this to handle instructions with a '.' in the middle (e.g., "sext.w")
         mnemonic = mnemonic.replace(".", "_")
@@ -51,22 +47,18 @@ class Lifter:
         if hasattr(self, mnemonic):
             # regular instruction -> lookup the function in the lifter
             handler = getattr(self, mnemonic)
-        elif mnemonic.startswith("c_"):
+        elif mnemonic.startswith("c_") and hasattr(self, mnemonic[2:]):
             # compressed instruction prefix
+            # fall back to the uncompressed handler
+            handler = getattr(self, mnemonic[2:])
 
-            if hasattr(self, "c_" + mnemonic[2:]):
-                # check if we have a lifter function for the compressed instruction
-                handler = getattr(self, "c_" + mnemonic[2:])
-            elif hasattr(self, mnemonic[2:]):
-                # else fall back to the uncompressed handler
-                handler = getattr(self, mnemonic[2:])
-                # if we have operands, compressed instructions typically follow
-                # the same rule of thumb:
-                # inst rX, rX, P <=> c.inst rX, P
+            # if we have operands, compressed instructions typically follow
+            # the same rule of thumb:
+            # inst rX, rX, P <=> c.inst rX, P
 
-                # compressed loads and stores just use the same operands
-                if ops and mnemonic[2:] not in {'lw', 'ld', 'lq', 'sw', 'sd', 'sq'}:
-                    ops = [ops[0]] + ops
+            # compressed loads and stores just use the same operands
+            if ops and mnemonic[2:] not in {'lw', 'ld', 'lq', 'sw', 'sd', 'sq'}:
+                ops = [ops[0]] + ops
 
         if handler is not None:
             try:
@@ -80,7 +72,9 @@ class Lifter:
             # print unimplemented mnemonics as warning, but just once
 
             if mnemonic not in _unliftable:
-                log_warn(f"[RISCV] cannot lift instruction: {mnemonic}")
+                log_warn(
+                    f"[RISCV] cannot lift instruction: {mnemonic} (first occurrence: {instr.address:#x})"
+                )
                 _unliftable.add(mnemonic)
 
             il.append(il.unimplemented())
@@ -638,8 +632,7 @@ class Lifter:
             il.set_reg(self.addr_size, op[0], il.const(self.addr_size, val)))
 
     def _store(self, il, op, imm, size):
-        offset = il.add(self.addr_size,
-                        il.reg(self.addr_size, op[1]),
+        offset = il.add(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.const(self.addr_size, imm))
 
         if op[0] == 'zero':
@@ -734,7 +727,6 @@ class Lifter:
         self.ld(il, op, imm)
 
     def mv(self, il, op, imm):
-
         if op[1] == 'zero':
             il.append(
                 il.set_reg(self.addr_size, op[0], il.const(self.addr_size, 0)))

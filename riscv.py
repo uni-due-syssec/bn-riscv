@@ -18,19 +18,16 @@ from binaryninja import (Architecture, BranchType, Endianness, InstructionInfo,
 from .instruction import RVDisassembler, gen_token
 from .lifter import Lifter
 
-branch_ins = set([
+branch_ins = {
     'beq', 'bne', 'beqz', 'bnez', 'bge', 'bgeu', 'blt', 'bltu', 'blez', 'bgez',
     'bltz', 'bgtz'
-])
+}
+branch_ins.update(["c." + bi for bi in branch_ins if not bi.startswith('c.')])
 
-for bi in list(branch_ins):  # use list() to clone here
-    if not bi.startswith('c.'):
-        branch_ins.add('c.' + bi)
-
-direct_jump_ins = set(['j', 'c.j'])
-indirect_jump_ins = set(['jr', 'c.jr'])
-direct_call_ins = set(['jal', 'c.jal'])
-indirect_call_ins = set(['jalr', 'c.jalr'])
+direct_jump_ins = {'j', 'c.j'}
+indirect_jump_ins = {'jr', 'c.jr'}
+direct_call_ins = {'jal', 'c.jal'}
+indirect_call_ins = {'jalr', 'c.jalr'}
 
 
 class RISCV(Architecture):
@@ -177,12 +174,12 @@ class RISCV(Architecture):
         """
         Check for jump instruction that look like functions returns.
         """
-        # any register jump to 'ra' the return address register, is probably a 
+        # any register jump to 'ra' the return address register, is probably a
         # function return.
 
-        if (instr.name == 'jalr' and len(instr.operands) == 2 and
-                instr.operands[0] == 'zero'
-                and instr.operands[1] == 'ra' and not instr.imm):
+        if (instr.name == 'jalr' and len(instr.operands) == 2
+                and instr.operands[0] == 'zero' and instr.operands[1] == 'ra'
+                and not instr.imm):
             # if jalr does not link into zero, then something weird
             # is going on and we don't want to mark this as a return.
             # similarly if a offset is added (via imm) to the ra register,
