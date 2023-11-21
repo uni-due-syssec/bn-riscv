@@ -15,7 +15,9 @@
 import capstone
 from capstone import (CS_ARCH_RISCV, CS_MODE_RISCV32, CS_MODE_RISCV64,
                       CS_MODE_RISCVC)
-from capstone.riscv import RISCV_OP_IMM, RISCV_OP_MEM, RISCV_OP_REG
+from capstone.riscv import RISCV_OP_IMM, RISCV_OP_MEM, RISCV_OP_REG, RISCVOp
+
+from typing import List
 
 from binaryninja import InstructionTextToken, InstructionTextTokenType, log_warn
 
@@ -29,7 +31,7 @@ _OFFSET.update(["c." + bi for bi in _OFFSET if not bi.startswith('c.')])
 class RVInstruction:
     __slots__ = 'address', 'size', 'name', 'op_str', 'operands', 'imm', 'imm_val', '_cs_inst'
 
-    def __init__(self, address, size, name, op_str, operands, imm, imm_val):
+    def __init__(self, address : int, size: int, name: str, op_str: str, operands: List[str], imm: int, imm_val: bool):
         self.address = address
         self.size = size
         self.name = name
@@ -64,31 +66,32 @@ class RVDisassembler:
     def decode(self, data, addr):
         op_str = ""
         imm = 0
-        operands = []
+        operands: List[str] = []
 
         try:
             insn = next(self._md.disasm(data, addr, count=1))
         except StopIteration:
             return None
-        size = insn.size
-        name = insn.mnemonic
+        size: int = insn.size
+        name: str = insn.mnemonic
         imm_val = False
 
         if len(insn.operands) > 0:
             for i in insn.operands:
+                i: RISCVOp = i
                 if i.type == RISCV_OP_REG:
-                    op_str += " " + (insn.reg_name(i.value.reg))
+                    op_str += f" {insn.reg_name(i.value.reg)}"
                     operands.append(insn.reg_name(i.value.reg))
                 elif i.type == RISCV_OP_IMM:
-                    imm = i.value.imm
+                    imm: int = i.value.imm
                     imm_val = True
                 elif i.type == RISCV_OP_MEM:
                     if i.mem.base != 0:
-                        op_str += " " + insn.reg_name(i.mem.base)
+                        op_str += f" {insn.reg_name(i.mem.base)}"
                         operands.append(insn.reg_name(i.mem.base))
 
                     if i.mem.disp != 0:
-                        imm = i.mem.disp
+                        imm: int = i.mem.disp
                         imm_val = True
                 else:
                     log_warn(
