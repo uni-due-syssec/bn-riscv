@@ -621,15 +621,19 @@ class Lifter:
                                          il.const(1, imm)))))
 
     def lui(self, il, op, imm):
+        # Set the immediate up as a 32-bit constant, w/ the constant value in the upper 20 bits
+        imm = il.shift_left(4,
+            il.const(3, imm),
+            il.const(1, 12))
+        # If we're decoding RISC-V 64, also zero-extend to the full register width
+        if self.addr_size == 8:
+            imm = il.zero_extend(self.addr_size, imm)
+
         il.append(
             il.set_reg(
                 self.addr_size,
                 op[0],
-                # il.shift_left(self.addr_size,
-                #               il.zero_extend(self.addr_size, il.const(3, imm)),
-                #               # il.const(self.addr_size, imm)),
-                #               il.const(self.addr_size, 12))
-                il.const(self.addr_size, imm)))
+                imm))
 
     def c_li(self, il, op, imm):
         il.append(
