@@ -13,7 +13,7 @@
 #   limitations under the License.
 
 from binaryninja import (Architecture, BranchType, Endianness, InstructionInfo,
-                         RegisterInfo)
+                         RegisterInfo, IntrinsicInfo)
 
 from .instruction import RVDisassembler, gen_token
 from .lifter import Lifter
@@ -138,6 +138,10 @@ class RISCV(Architecture):
     }
 
     stack_pointer = "sp"
+
+    intrinsics = {
+        'wfi': IntrinsicInfo([], []),
+    }
 
     def get_instruction_info(self, data, addr):
 
