@@ -840,6 +840,12 @@ class Lifter:
     def wfi(self, il: LowLevelILFunction, op, imm):
         il.append(il.intrinsic([], 'wfi', []))
 
+    def mret(self, il: LowLevelILFunction, op, imm):
+        il.append(il.ret(il.reg(self.addr_size, 'mepc')))
+
+    def sret(self, il: LowLevelILFunction, op, imm):
+        il.append(il.ret(il.reg(self.addr_size, 'sepc')))
+
     # floating point instructions
 
     def flw(self, il, op, imm):

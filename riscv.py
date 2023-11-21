@@ -96,6 +96,10 @@ class RISCV(Architecture):
         "t6": RegisterInfo("t6", address_size),
         # pc (caller saved)
         "pc": RegisterInfo("pc", address_size),
+        # machine CSRs
+        "mepc": RegisterInfo("mepc", address_size),
+        # supervisor CSRs
+        "sepc": RegisterInfo("sepc", address_size),
 
         # f0-7 - FP temporaries (caller saved)
         "ft0": RegisterInfo("ft0", default_float_size),
