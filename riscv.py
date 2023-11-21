@@ -45,7 +45,7 @@ class RISCV(Architecture):
     endianness = Endianness.LittleEndian
 
     disassembler = RVDisassembler(address_size)
-    lifter = Lifter(address_size)
+    lifter = Lifter(address_size, arch_name = name)
 
     # we are using the ABI names here, as those are also the register names
     # returned by capstone.
@@ -220,7 +220,7 @@ class RISCV64(RISCV):
     default_int_size = 4
 
     disassembler = RVDisassembler(address_size)
-    lifter = Lifter(address_size)
+    lifter = Lifter(address_size, arch_name = name)
 
     regs = {
         k: (RegisterInfo(k, 8) if v.size == 4 else RegisterInfo(k, v.size))

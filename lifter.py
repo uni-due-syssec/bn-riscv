@@ -22,7 +22,7 @@ _unliftable = set()
 
 
 class Lifter:
-    def __init__(self, addr_size, arch_name='riscv'):
+    def __init__(self, addr_size, arch_name):
         self.arch_name = arch_name
         self.addr_size = addr_size
 
