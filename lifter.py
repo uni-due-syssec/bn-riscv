@@ -411,6 +411,21 @@ class Lifter:
                 il.mult(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.reg(self.addr_size, op[2]))))
 
+    def mulh(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.logical_shift_right(self.addr_size,
+                    il.mult(self.addr_size * 2, il.reg(self.addr_size, op[1]),
+                        il.reg(self.addr_size, op[2])),
+                    il.const(1, self.addr_size * 8))))
+
+    def mulhu(self, il, op, imm):
+        self.mulh(il, op, imm)
+
+    def mulhsu(self, il, op, imm):
+        self.mulh(il, op, imm)
+
     def div(self, il, op, imm):
         il.append(
             il.set_reg(
