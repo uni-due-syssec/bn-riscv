@@ -834,6 +834,9 @@ class Lifter:
     def csrw(self, il, op, imm):
         il.append(il.set_reg(self.addr_size, op[0], il.undefined()))
 
+    def fence(self, il: LowLevelILFunction, op, imm):
+        il.append(il.intrinsic([], 'fence', []))
+
     def wfi(self, il: LowLevelILFunction, op, imm):
         il.append(il.intrinsic([], 'wfi', []))
 

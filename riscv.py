@@ -141,6 +141,7 @@ class RISCV(Architecture):
 
     intrinsics = {
         'wfi': IntrinsicInfo([], []),
+        'fence': IntrinsicInfo([], []),
     }
 
     def get_instruction_info(self, data, addr):
