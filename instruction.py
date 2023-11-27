@@ -102,22 +102,22 @@ class RVDisassembler:
                              imm_val)
 
 
-def gen_token(instr):
+def gen_token(instr: RVInstruction):
     tokens = [
         InstructionTextToken(InstructionTextTokenType.InstructionToken,
                              "{:6} ".format(instr.name))
     ]
     operands = instr.operands
 
-    for i in operands:
+    for i, reg in enumerate(operands):
         tokens.append(
-            InstructionTextToken(InstructionTextTokenType.TextToken, " "))
+            InstructionTextToken(InstructionTextTokenType.TextToken, " " if i == 0 else ", "))
         tokens.append(
-            InstructionTextToken(InstructionTextTokenType.RegisterToken, i))
+            InstructionTextToken(InstructionTextTokenType.RegisterToken, reg))
 
     if instr.imm_val:
         tokens.append(
-            InstructionTextToken(InstructionTextTokenType.TextToken, " "))
+            InstructionTextToken(InstructionTextTokenType.TextToken, ", "))
 
         if instr.name in _OFFSET:
             # val = instr.address + instr.imm
