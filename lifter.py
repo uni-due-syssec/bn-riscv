@@ -22,7 +22,7 @@ _unliftable = set()
 
 
 class Lifter:
-    def __init__(self, addr_size, arch_name='riscv'):
+    def __init__(self, addr_size, arch_name):
         self.arch_name = arch_name
         self.addr_size = addr_size
 
@@ -411,6 +411,21 @@ class Lifter:
                 il.mult(self.addr_size, il.reg(self.addr_size, op[1]),
                         il.reg(self.addr_size, op[2]))))
 
+    def mulh(self, il, op, imm):
+        il.append(
+            il.set_reg(
+                self.addr_size, op[0],
+                il.logical_shift_right(self.addr_size,
+                    il.mult(self.addr_size * 2, il.reg(self.addr_size, op[1]),
+                        il.reg(self.addr_size, op[2])),
+                    il.const(1, self.addr_size * 8))))
+
+    def mulhu(self, il, op, imm):
+        self.mulh(il, op, imm)
+
+    def mulhsu(self, il, op, imm):
+        self.mulh(il, op, imm)
+
     def div(self, il, op, imm):
         il.append(
             il.set_reg(
@@ -621,15 +636,19 @@ class Lifter:
                                          il.const(1, imm)))))
 
     def lui(self, il, op, imm):
+        # Set the immediate up as a 32-bit constant, w/ the constant value in the upper 20 bits
+        imm = il.shift_left(4,
+            il.const(3, imm),
+            il.const(1, 12))
+        # If we're decoding RISC-V 64, also zero-extend to the full register width
+        if self.addr_size == 8:
+            imm = il.zero_extend(self.addr_size, imm)
+
         il.append(
             il.set_reg(
                 self.addr_size,
                 op[0],
-                # il.shift_left(self.addr_size,
-                #               il.zero_extend(self.addr_size, il.const(3, imm)),
-                #               # il.const(self.addr_size, imm)),
-                #               il.const(self.addr_size, 12))
-                il.const(self.addr_size, imm)))
+                imm))
 
     def c_li(self, il, op, imm):
         il.append(
@@ -814,6 +833,18 @@ class Lifter:
 
     def csrw(self, il, op, imm):
         il.append(il.set_reg(self.addr_size, op[0], il.undefined()))
+
+    def fence(self, il: LowLevelILFunction, op, imm):
+        il.append(il.intrinsic([], 'fence', []))
+
+    def wfi(self, il: LowLevelILFunction, op, imm):
+        il.append(il.intrinsic([], 'wfi', []))
+
+    def mret(self, il: LowLevelILFunction, op, imm):
+        il.append(il.ret(il.reg(self.addr_size, 'mepc')))
+
+    def sret(self, il: LowLevelILFunction, op, imm):
+        il.append(il.ret(il.reg(self.addr_size, 'sepc')))
 
     # floating point instructions
 

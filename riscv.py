@@ -13,7 +13,7 @@
 #   limitations under the License.
 
 from binaryninja import (Architecture, BranchType, Endianness, InstructionInfo,
-                         RegisterInfo)
+                         RegisterInfo, IntrinsicInfo)
 
 from .instruction import RVDisassembler, gen_token
 from .lifter import Lifter
@@ -45,7 +45,7 @@ class RISCV(Architecture):
     endianness = Endianness.LittleEndian
 
     disassembler = RVDisassembler(address_size)
-    lifter = Lifter(address_size)
+    lifter = Lifter(address_size, arch_name = name)
 
     # we are using the ABI names here, as those are also the register names
     # returned by capstone.
@@ -96,6 +96,10 @@ class RISCV(Architecture):
         "t6": RegisterInfo("t6", address_size),
         # pc (caller saved)
         "pc": RegisterInfo("pc", address_size),
+        # machine CSRs
+        "mepc": RegisterInfo("mepc", address_size),
+        # supervisor CSRs
+        "sepc": RegisterInfo("sepc", address_size),
 
         # f0-7 - FP temporaries (caller saved)
         "ft0": RegisterInfo("ft0", default_float_size),
@@ -138,6 +142,11 @@ class RISCV(Architecture):
     }
 
     stack_pointer = "sp"
+
+    intrinsics = {
+        'wfi': IntrinsicInfo([], []),
+        'fence': IntrinsicInfo([], []),
+    }
 
     def get_instruction_info(self, data, addr):
 
@@ -220,7 +229,7 @@ class RISCV64(RISCV):
     default_int_size = 4
 
     disassembler = RVDisassembler(address_size)
-    lifter = Lifter(address_size)
+    lifter = Lifter(address_size, arch_name = name)
 
     regs = {
         k: (RegisterInfo(k, 8) if v.size == 4 else RegisterInfo(k, v.size))
